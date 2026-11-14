@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { useRouter } from "next/navigation"; // Added this to handle redirects
 
-// THIS IS WHERE VERCEL WILL INJECT YOUR KEYS
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 const supabase = createClient(supabaseUrl, supabaseKey);
@@ -12,6 +12,7 @@ export default function AuthPage() {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState({ text: "", isError: false });
+  const router = useRouter(); // Initialize the router
 
   const formatPhoneToEmail = (phoneNumber: string) => {
     return `${phoneNumber.trim()}@lipa.local`;
@@ -44,8 +45,8 @@ export default function AuthPage() {
     if (error) {
       setMessage({ text: error.message, isError: true });
     } else {
-      setMessage({ text: "Login successful! Welcome to LIPA.", isError: false });
-      // We will redirect to the Dashboard later
+      // THIS IS THE NEW LINE: It sends the user to the dashboard!
+      router.push("/dashboard/home"); 
     }
   };
 
