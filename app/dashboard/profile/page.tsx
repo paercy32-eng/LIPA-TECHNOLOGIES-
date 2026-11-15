@@ -98,14 +98,25 @@ export default function ProfilePage() {
     if (!depositPhone || depositPhone.length < 9) return setMessage({ text: "Please enter a valid phone number", isError: true });
 
     setIsProcessing(true);
+    setMessage({ text: "", isError: false });
+
     try {
       const response = await fetch("/api/deposit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ amount, phone: depositPhone, userId })
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error);
+      
+      // SAFELY READ TEXT FIRST to prevent "Unexpected end of JSON input" crash
+      const responseText = await response.text();
+      
+      if (!responseText) {
+        throw new Error("Server error: No response from API. Check Vercel logs.");
+      }
+
+      const data = JSON.parse(responseText);
+
+      if (!response.ok) throw new Error(data.error || "Deposit failed");
 
       setIsDepositOpen(false);
       setDepositAmount("");
@@ -310,4 +321,4 @@ export default function ProfilePage() {
       )}
     </div>
   );
-      }
+            }
