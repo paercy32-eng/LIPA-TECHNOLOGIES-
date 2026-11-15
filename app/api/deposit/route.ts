@@ -8,23 +8,21 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 export async function POST(req: Request) {
   try {
-    const { amount, phone } = await req.json();
+    // We now accept userId from the frontend
+    const { amount, phone, userId } = await req.json();
 
-    // 1. Validation (Minimum 5000 UGX)
     if (!amount || amount < 5000) {
       return NextResponse.json({ error: "Minimum deposit is 5000 UGX" }, { status: 400 });
     }
 
-    // 2. Format Phone Number (+256...)
+    if (!userId) {
+      return NextResponse.json({ error: "User not authenticated" }, { status: 401 });
+    }
+
     const formattedPhone = phone.startsWith("+") ? phone : `+256${phone.replace(/^0/, "")}`;
-
-    // 3. Generate a unique reference UUID for MarzPay
     const reference = randomUUID();
-
-    // 4. Prepare MarzPay Basic Auth (PublicKey:SecretKey)
     const authString = Buffer.from(`${process.env.MARZPAY_PUBLIC_KEY}:${process.env.MARZPAY_SECRET_KEY}`).toString("base64");
 
-    // 5. Send Request to MarzPay
     const marzPayload = new FormData();
     marzPayload.append("amount", amount.toString());
     marzPayload.append("phone_number", formattedPhone);
@@ -35,9 +33,7 @@ export async function POST(req: Request) {
 
     const response = await fetch("https://wallet.wearemarz.com/api/v1/collect-money", {
       method: "POST",
-      headers: {
-        "Authorization": `Basic ${authString}`,
-      },
+      headers: { "Authorization": `Basic ${authString}` },
       body: marzPayload,
     });
 
@@ -47,10 +43,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: data.message || "MarzPay error" }, { status: 400 });
     }
 
-    // 6. Save PENDING transaction to Supabase using the reference as the ID
+    // Save PENDING transaction using the userId passed from frontend
     const { error: dbError } = await supabase.from("transactions").insert({
-      id: reference, // We use the UUID as the transaction ID so the webhook can find it
-      user_id: (await supabase.auth.getUser()).data.user?.id,
+      id: reference, 
+      user_id: userId, 
       type: "DEPOSIT",
       amount: Number(amount),
       status: "PENDING",
