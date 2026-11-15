@@ -7,6 +7,17 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+// We need the product list here to map names and images to the investments
+const productDB = [
+  { id: "p1", name: "LipaVault", img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400&auto=format&fit=crop" },
+  { id: "p2", name: "LipaCore", img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400&auto=format&fit=crop" },
+  { id: "p3", name: "LipaShield", img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400&auto=format&fit=crop" },
+  { id: "p16", name: "LipaFlow", img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400&auto=format&fit=crop" },
+  { id: "p17", name: "LipaPulse", img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400&auto=format&fit=crop" },
+  { id: "p26", name: "LipaTap", img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400&auto=format&fit=crop" },
+  // Add the rest of the 35 products here for the Income page
+];
+
 export default function IncomePage() {
   const [investments, setInvestments] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -16,7 +27,6 @@ export default function IncomePage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Fetch real investments from Supabase
       const { data, error } = await supabase
         .from("investments")
         .select("*")
@@ -24,15 +34,16 @@ export default function IncomePage() {
         .order("created_at", { ascending: false });
 
       if (data) {
-        // Calculate days earned based on start_date
         const processedData = data.map(inv => {
           const start = new Date(inv.created_at);
           const now = new Date();
-          // Calculate difference in days
           const diffTime = Math.abs(now.getTime() - start.getTime());
           const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
           
-          return { ...inv, daysEarned: diffDays };
+          // Find product details
+          const productInfo = productDB.find(p => p.id === inv.product_id) || { name: "Unknown Product", img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400" };
+          
+          return { ...inv, daysEarned: diffDays, productName: productInfo.name, productImg: productInfo.img };
         });
         setInvestments(processedData);
       }
@@ -61,17 +72,14 @@ export default function IncomePage() {
       ) : (
         <div className="space-y-4">
           {investments.map((inv) => (
-            <div key={inv.id} className="bg-gradient-to-br from-gray-800 to-gray-900 border border-gray-700 rounded-2xl p-5 shadow-lg relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-24 h-24 bg-green-500/10 blur-2xl rounded-full"></div>
-
-              <div className="flex justify-between items-start mb-4">
+            <div key={inv.id} className="bg-gradient-to-br from-gray-800 to-gray-900 border border-gray-700 rounded-2xl p-4 shadow-lg relative overflow-hidden flex flex-col">
+              
+              <div className="flex gap-4 mb-4">
+                <img src={inv.productImg} alt={inv.productName} className="w-16 h-16 rounded-xl object-cover border border-gray-700" />
                 <div>
-                  <h3 className="text-lg font-bold text-white">Product ID: {inv.product_id}</h3>
+                  <h3 className="text-lg font-bold text-white">{inv.productName}</h3>
                   <p className="text-[10px] text-green-400 font-bold tracking-widest uppercase mt-1">{inv.status}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-[10px] text-gray-400 uppercase tracking-widest">Invested</p>
-                  <p className="text-lg font-bold text-[#00d2ff]">{Number(inv.amount).toLocaleString()} UGX</p>
+                  <p className="text-sm font-bold text-[#00d2ff] mt-1">{Number(inv.amount).toLocaleString()} UGX</p>
                 </div>
               </div>
 
