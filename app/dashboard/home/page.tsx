@@ -15,16 +15,16 @@ export default function HomePage() {
   const [isProcessing, setIsProcessing] = useState(false);
 
   const tabs = [
-    { id: "ALL", label: "All Products" },
+    { id: "ALL", label: "All" },
     { id: "LOCK", label: "Lock Plans" },
     { id: "DAILY_PAYOUT", label: "Daily Payouts" },
     { id: "UNLOCK_24H", label: "24Hr Unlock" },
   ];
 
   const images = {
-    LOCK: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400&auto=format&fit=crop",
-    DAILY_PAYOUT: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400&auto=format&fit=crop",
-    UNLOCK_24H: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400&auto=format&fit=crop",
+    LOCK: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=600&auto=format&fit=crop",
+    DAILY_PAYOUT: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=600&auto=format&fit=crop",
+    UNLOCK_24H: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=600&auto=format&fit=crop",
   };
 
   const products = [
@@ -100,19 +100,10 @@ export default function HomePage() {
         return alert(`Insufficient balance. You need UGX ${product.price.toLocaleString()}. You currently have UGX ${currentBalance.toLocaleString()}.`);
       }
 
-      const { count: invCount } = await supabase
-        .from("investments")
-        .select("*", { count: 'exact', head: true })
-        .eq("user_id", userId);
+      const { count: invCount } = await supabase.from("investments").select("*", { count: 'exact', head: true }).eq("user_id", userId);
 
       if (invCount === 0) {
-        const { data: deposits } = await supabase
-          .from("transactions")
-          .select("amount")
-          .eq("user_id", userId)
-          .eq("type", "DEPOSIT")
-          .eq("status", "COMPLETED");
-
+        const { data: deposits } = await supabase.from("transactions").select("amount").eq("user_id", userId).eq("type", "DEPOSIT").eq("status", "COMPLETED");
         const totalDeposited = deposits?.reduce((sum, tx) => sum + Number(tx.amount), 0) || 0;
 
         if (totalDeposited < product.price) {
@@ -148,29 +139,30 @@ export default function HomePage() {
   const filteredProducts = activeTab === "ALL" ? products : products.filter(p => p.category === activeTab);
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-gray-900 pb-24">
-      {/* Bright Header */}
-      <div className="bg-white p-5 pt-8 shadow-sm rounded-b-3xl flex justify-between items-center sticky top-0 z-20">
+    <div className="min-h-screen bg-[#0B0C10] text-white pb-24">
+      
+      {/* Header */}
+      <div className="p-5 pt-8 flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-black text-gray-900 tracking-tight">Explore</h1>
-          <p className="text-xs text-gray-500 font-medium mt-1">Find your next investment</p>
+          <h1 className="text-2xl font-black text-white tracking-tight">Explore</h1>
+          <p className="text-xs text-gray-400 font-medium mt-1">Find your next investment</p>
         </div>
-        <div className="bg-blue-50 px-4 py-2 rounded-2xl border border-blue-100 text-right">
-          <p className="text-[10px] text-blue-500 font-bold uppercase tracking-wider">Balance</p>
-          <p className="text-sm font-black text-blue-700">UGX {balance.toLocaleString()}</p>
+        <div className="bg-[#12141D] px-4 py-2 rounded-2xl border border-gray-800 text-right">
+          <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Balance</p>
+          <p className="text-sm font-black text-[#00D2FF]">UGX {balance.toLocaleString()}</p>
         </div>
       </div>
 
-      {/* Category Pills */}
-      <div className="flex space-x-3 px-5 py-6 overflow-x-auto no-scrollbar">
+      {/* Category Tabs */}
+      <div className="flex space-x-2 px-5 py-4 overflow-x-auto no-scrollbar">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`px-5 py-2.5 whitespace-nowrap rounded-full font-bold text-xs transition-all ${
+            className={`px-5 py-2.5 whitespace-nowrap rounded-xl font-bold text-xs transition-all ${
               activeTab === tab.id 
-                ? "bg-blue-600 text-white shadow-[0_5px_15px_rgba(37,99,235,0.3)] scale-105" 
-                : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"
+                ? "bg-[#7B61FF] text-white shadow-[0_5px_15px_rgba(123,97,255,0.4)]" 
+                : "bg-[#12141D] text-gray-400 border border-gray-800 hover:bg-gray-800"
             }`}
           >
             {tab.label}
@@ -178,63 +170,56 @@ export default function HomePage() {
         ))}
       </div>
 
-      {/* Product Grid */}
-      <div className="px-5 grid grid-cols-2 gap-4">
+      {/* Product List (Horizontal Cards) */}
+      <div className="px-5 space-y-4">
         {filteredProducts.map((product, index) => {
           const isPurchased = purchasedIds.includes(product.id);
-          const imgUrl = index % 3 === 0 
-            ? images.LOCK 
-            : index % 3 === 1 
-            ? images.DAILY_PAYOUT
-            : images.UNLOCK_24H;
+          const imgUrl = index % 3 === 0 ? images.LOCK : index % 3 === 1 ? images.DAILY_PAYOUT : images.UNLOCK_24H;
 
           let btnText = "";
-          let btnClass = "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md";
+          let btnClass = "bg-[#7B61FF] hover:bg-[#6a52df] text-white shadow-[0_0_15px_rgba(123,97,255,0.4)]";
           
           if (isPurchased) {
-            btnClass = "bg-gray-100 text-gray-400 cursor-not-allowed";
+            btnClass = "bg-gray-800 text-gray-500 cursor-not-allowed border border-gray-700";
             if (product.category === "LOCK") btnText = "Locked In";
             else if (product.category === "DAILY_PAYOUT") btnText = "Purchased";
             else if (product.category === "UNLOCK_24H") btnText = "Unlocked";
           } else {
             if (product.category === "LOCK") btnText = "Lock In";
-            else if (product.category === "DAILY_PAYOUT") btnText = "Buy Now";
+            else if (product.category === "DAILY_PAYOUT") btnText = "Invest Now";
             else if (product.category === "UNLOCK_24H") btnText = "Locked";
           }
 
           return (
-            <div key={product.id} className="bg-white rounded-3xl p-3 shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-gray-100 flex flex-col justify-between">
-              <div>
-                {/* Image */}
-                <div className="w-full h-24 rounded-2xl overflow-hidden mb-3 relative bg-gray-100">
-                  <img src={imgUrl} alt={product.name} className="w-full h-full object-cover" />
-                  <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm px-2 py-0.5 rounded-md text-[9px] font-bold text-gray-800 shadow-sm uppercase">
-                    {product.category.replace('_', ' ')}
-                  </div>
-                </div>
-
-                {/* Title & Price */}
-                <h3 className="text-gray-900 font-extrabold text-[15px] leading-tight mb-1 truncate">{product.name}</h3>
-                <div className="flex items-baseline gap-1 mb-3">
-                  <span className="text-xs font-bold text-gray-400">UGX</span>
-                  <span className="text-xl font-black text-gray-900">{product.price.toLocaleString()}</span>
+            <div key={product.id} className="bg-[#12141D] border border-gray-800 rounded-3xl overflow-hidden flex flex-row shadow-lg">
+              
+              {/* Left Side: Image & Badge */}
+              <div className="w-[40%] relative">
+                <img src={imgUrl} alt={product.name} className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent to-[#12141D]"></div>
+                <div className="absolute top-3 left-3 bg-[#7B61FF] text-white text-[10px] font-bold px-2.5 py-1 rounded-md shadow-lg">
+                  {product.cycle} Days
                 </div>
               </div>
 
-              {/* Stats Box */}
-              <div>
-                <div className="bg-gray-50 rounded-xl p-2.5 mb-3 grid grid-cols-3 gap-1 divide-x divide-gray-200">
-                  <div className="text-center">
-                    <p className="text-[9px] text-gray-400 font-bold uppercase">Daily</p>
-                    <p className="text-[11px] font-bold text-blue-600">{product.daily}</p>
+              {/* Right Side: Details */}
+              <div className="w-[60%] p-4 flex flex-col justify-between z-10">
+                <div>
+                  <h3 className="text-white font-extrabold text-[15px] leading-tight mb-2">{product.name}</h3>
+                  
+                  <div className="space-y-1 mb-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] text-gray-400 font-bold uppercase">Daily</span>
+                      <span className="text-xs font-bold text-[#00D2FF]">UGX {product.daily}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] text-gray-400 font-bold uppercase">Total</span>
+                      <span className="text-xs font-bold text-white">UGX {product.total.toLocaleString()}</span>
+                    </div>
                   </div>
-                  <div className="text-center">
-                    <p className="text-[9px] text-gray-400 font-bold uppercase">Cycle</p>
-                    <p className="text-[11px] font-bold text-gray-700">{product.cycle}</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-[9px] text-gray-400 font-bold uppercase">Total</p>
-                    <p className="text-[11px] font-bold text-green-600">{product.total.toLocaleString()}</p>
+
+                  <div className="mb-4">
+                    <span className="text-lg font-black text-white">UGX {product.price.toLocaleString()}</span>
                   </div>
                 </div>
 
@@ -252,4 +237,4 @@ export default function HomePage() {
       </div>
     </div>
   );
-    }
+                                                      }
