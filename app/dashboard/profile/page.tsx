@@ -16,6 +16,7 @@ export default function ProfilePage() {
   const [balance, setBalance] = useState("0");
   const [fullName, setFullName] = useState("");
   const [boundNumber, setBoundNumber] = useState("");
+  const [displayName, setDisplayName] = useState("");
   
   // Modals State
   const [isDepositOpen, setIsDepositOpen] = useState(false);
@@ -45,15 +46,23 @@ export default function ProfilePage() {
         setDepositPhone(phone); 
         setUserId(user.id);
 
-        // Fetch Profile & Balance
-        const { data: profile } = await supabase.from("profiles").select("full_name, bound_number").eq("id", user.id).single();
+        // Fetch Profile Details including display_name
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("display_name, full_name, bound_number")
+          .eq("id", user.id)
+          .single();
+          
         if (profile) {
+          // If display_name exists in DB use it, otherwise generate from last 4 digits of phone
+          setDisplayName(profile.display_name || `user ${phone.slice(-4)}`);
           setFullName(profile.full_name || "");
           setBoundNumber(profile.bound_number || "");
           setBindName(profile.full_name || "");
           setBindPhone(profile.bound_number || "");
         }
 
+        // Fetch Balance
         const { data: bal } = await supabase.from("balances").select("available").eq("user_id", user.id).single();
         if (bal) setBalance(bal.available.toString());
       } else {
@@ -168,7 +177,8 @@ export default function ProfilePage() {
         </div>
         <div className="text-right">
           <p className="text-[10px] text-gray-500 font-bold tracking-widest uppercase mb-1">Signed In</p>
-          <p className="text-sm font-bold text-white">{userPhone}</p>
+          {/* Display Name shown here */}
+          <p className="text-sm font-bold text-white">{displayName || userPhone}</p>
         </div>
       </div>
 
@@ -297,4 +307,4 @@ export default function ProfilePage() {
       )}
     </div>
   );
-}
+    }
