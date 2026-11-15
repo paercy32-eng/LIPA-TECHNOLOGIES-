@@ -8,6 +8,45 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+// --- ALL 35 PRODUCTS FOR THE DROPDOWN ---
+const PRODUCTS = [
+  { id: "p1", name: "LipaVault", price: 10000, total: 25000 },
+  { id: "p2", name: "LipaCore", price: 5000, total: 13000 },
+  { id: "p3", name: "LipaShield", price: 50000, total: 75000 },
+  { id: "p4", name: "LipaControl", price: 100000, total: 300000 },
+  { id: "p5", name: "LipaCredit", price: 150000, total: 450000 },
+  { id: "p6", name: "LipaDirect", price: 200000, total: 300000 },
+  { id: "p7", name: "LipaOmni", price: 75000, total: 110000 },
+  { id: "p8", name: "LipaAdmin", price: 20000, total: 50000 },
+  { id: "p9", name: "LipaLedger", price: 50000, total: 80000 },
+  { id: "p10", name: "LipaBridge", price: 180000, total: 400000 },
+  { id: "p11", name: "LipaConnect", price: 250000, total: 500000 },
+  { id: "p12", name: "LipaSDK", price: 500000, total: 100000 },
+  { id: "p13", name: "LipaGateway", price: 800000, total: 2000000 },
+  { id: "p14", name: "LipaX", price: 1000000, total: 3000000 },
+  { id: "p15", name: "LipaDashboard", price: 2000000, total: 4500000 },
+  { id: "p16", name: "LipaFlow", price: 5000, total: 10000 },
+  { id: "p17", name: "LipaPulse", price: 10000, total: 15000 },
+  { id: "p18", name: "LipaRewards", price: 25000, total: 50000 },
+  { id: "p19", name: "LipaSub", price: 50000, total: 120000 },
+  { id: "p20", name: "LipaSpend", price: 100000, total: 225000 },
+  { id: "p21", name: "LipaSplit", price: 150000, total: 320000 },
+  { id: "p22", name: "LipaPaylink", price: 250000, total: 630000 },
+  { id: "p23", name: "LipaInvoice", price: 500000, total: 1950000 },
+  { id: "p24", name: "LipaInsights", price: 1000000, total: 3000000 },
+  { id: "p25", name: "LipaVirtual", price: 2000000, total: 5600000 },
+  { id: "p26", name: "LipaTap", price: 5000, total: 10000 },
+  { id: "p27", name: "LipaScan", price: 10000, total: 18000 },
+  { id: "p28", name: "LipaGo", price: 25000, total: 40000 },
+  { id: "p29", name: "LipaPocket", price: 50000, total: 80000 },
+  { id: "p30", name: "LipaWallet", price: 75000, total: 120000 },
+  { id: "p31", name: "LipaP2P", price: 100000, total: 160000 },
+  { id: "p32", name: "LipaSoftPOS", price: 150000, total: 280000 },
+  { id: "p33", name: "LipaTerminal", price: 250000, total: 400000 },
+  { id: "p34", name: "LipaCheckout", price: 500000, total: 1000000 },
+  { id: "p35", name: "LipaRegister", price: 1000000, total: 2000000 },
+];
+
 export default function AdminPanel() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("OVERVIEW");
@@ -16,6 +55,12 @@ export default function AdminPanel() {
   const [users, setUsers] = useState<any[]>([]);
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [stats, setStats] = useState({ totalUsers: 0, totalDeposited: 0, totalInvested: 0 });
+
+  // --- GRANT PRODUCT MODAL STATE ---
+  const [isGrantModalOpen, setIsGrantModalOpen] = useState(false);
+  const [grantUserId, setGrantUserId] = useState("");
+  const [grantProductId, setGrantProductId] = useState("p1");
+  const [grantReturn, setGrantReturn] = useState("25000");
 
   useEffect(() => {
     const checkAdminAndFetch = async () => {
@@ -38,11 +83,9 @@ export default function AdminPanel() {
   }, []);
 
   const fetchAllData = async () => {
-    // 1. Fetch Users
     const { data: profiles } = await supabase.from("profiles").select("*, balances(available)").order("created_at", { ascending: false });
     if (profiles) setUsers(profiles);
 
-    // 2. Fetch Pending Withdrawals
     const { data: txs } = await supabase
       .from("transactions")
       .select("*, profiles(phone, full_name, bound_number)")
@@ -51,7 +94,6 @@ export default function AdminPanel() {
       .order("created_at", { ascending: false });
     if (txs) setWithdrawals(txs);
 
-    // 3. Fetch Stats
     const { count: userCount } = await supabase.from("profiles").select("*", { count: 'exact', head: true });
     const { data: deposits } = await supabase.from("transactions").select("amount").eq("type", "DEPOSIT").eq("status", "COMPLETED");
     const { data: investments } = await supabase.from("investments").select("amount").eq("status", "ACTIVE");
@@ -64,7 +106,6 @@ export default function AdminPanel() {
   };
 
   // --- ACTION FUNCTIONS ---
-
   const handleAdjustBalance = async (userId: string, currentBalance: number) => {
     const newBalance = prompt("Enter new balance (UGX):", currentBalance.toString());
     if (newBalance === null) return;
@@ -77,25 +118,39 @@ export default function AdminPanel() {
     }
   };
 
-  const handleGrantProduct = async (userId: string) => {
-    const productId = prompt("Enter Product ID to grant (e.g., p1, p16, p26):");
-    if (!productId) return;
+  // Open the Grant Modal and set defaults
+  const openGrantModal = (userId: string) => {
+    setGrantUserId(userId);
+    setGrantProductId("p1"); // Default to LipaVault
+    setGrantReturn("25000");
+    setIsGrantModalOpen(true);
+  };
 
-    const expectedReturn = prompt("Enter Expected Return Amount (UGX):");
-    if (!expectedReturn) return;
+  // Handle the product selection change to auto-fill the expected return
+  const handleProductChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const selectedId = e.target.value;
+    setGrantProductId(selectedId);
+    
+    const product = PRODUCTS.find(p => p.id === selectedId);
+    if (product) setGrantReturn(product.total.toString());
+  };
 
-    // Insert into investments table. Amount is 0 because we are granting it.
+  // Submit the grant
+  const confirmGrantProduct = async () => {
+    if (!grantUserId || !grantProductId || !grantReturn) return;
+
     const { error } = await supabase.from("investments").insert({
-      user_id: userId,
-      product_id: productId.toLowerCase(),
-      amount: 0, // Admin granted
-      expected_return: Number(expectedReturn),
+      user_id: grantUserId,
+      product_id: grantProductId,
+      amount: 0, // 0 because it's granted by admin, not purchased
+      expected_return: Number(grantReturn),
       status: "ACTIVE",
     });
 
     if (error) alert("Error granting product: " + error.message);
     else {
       alert("Product granted successfully! It will now appear on their Income page.");
+      setIsGrantModalOpen(false);
       fetchAllData();
     }
   };
@@ -123,7 +178,6 @@ export default function AdminPanel() {
     if (!confirm("Reject this withdrawal? The amount will be refunded to the user's balance.")) return;
     await supabase.from("transactions").update({ status: "REJECTED" }).eq("id", txId);
     
-    // Refund balance
     const { data: bal } = await supabase.from("balances").select("available").eq("user_id", userId).single();
     if (bal) {
       const newBalance = Number(bal.available) + Number(amount);
@@ -213,7 +267,7 @@ export default function AdminPanel() {
                   </button>
                   
                   <button 
-                    onClick={() => handleGrantProduct(user.id)} 
+                    onClick={() => openGrantModal(user.id)} 
                     className="text-[10px] bg-[#7B61FF]/20 text-[#7B61FF] px-3 py-1.5 rounded-lg border border-[#7B61FF]/50 hover:bg-[#7B61FF]/30"
                   >
                     Grant Product
@@ -258,6 +312,43 @@ export default function AdminPanel() {
           </div>
         )}
       </div>
+
+      {/* --- GRANT PRODUCT MODAL --- */}
+      {isGrantModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#12141D] border border-gray-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-bold text-white">Grant Product</h3>
+              <button onClick={() => setIsGrantModalOpen(false)} className="text-gray-400 hover:text-white">✕</button>
+            </div>
+
+            <label className="block text-[10px] font-bold tracking-widest text-gray-400 uppercase mb-1">Select Product</label>
+            <select 
+              value={grantProductId} 
+              onChange={handleProductChange}
+              className="w-full px-4 py-3 bg-[#0B0C10] border border-gray-700 rounded-xl focus:outline-none focus:border-[#7B61FF] text-white mb-4"
+            >
+              {PRODUCTS.map(p => (
+                <option key={p.id} value={p.id}>
+                  {p.name} ({p.price.toLocaleString()} UGX)
+                </option>
+              ))}
+            </select>
+
+            <label className="block text-[10px] font-bold tracking-widest text-gray-400 uppercase mb-1">Expected Return (UGX)</label>
+            <input 
+              type="number" 
+              value={grantReturn}
+              onChange={(e) => setGrantReturn(e.target.value)}
+              className="w-full px-4 py-3 bg-[#0B0C10] border border-gray-700 rounded-xl focus:outline-none focus:border-[#7B61FF] text-white font-bold mb-6"
+            />
+
+            <button onClick={confirmGrantProduct} className="w-full font-bold py-4 rounded-xl text-white bg-[#7B61FF] hover:bg-[#6a52df]">
+              Confirm Grant
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
-}
+                                                              }
