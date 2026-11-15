@@ -21,53 +21,48 @@ export default function HomePage() {
     { id: "UNLOCK_24H", label: "24Hr Unlock" },
   ];
 
-  const images = {
-    LOCK: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=600&auto=format&fit=crop",
-    DAILY_PAYOUT: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=600&auto=format&fit=crop",
-    UNLOCK_24H: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=600&auto=format&fit=crop",
-  };
-
+  // 35 PRODUCTS WITH UNIQUE IMAGES
   const products = [
-    // LOCK PLANS (15)
-    { id: "p1", name: "LipaVault", category: "LOCK", price: 10000, daily: "0", cycle: "3d", total: 25000 },
-    { id: "p2", name: "LipaCore", category: "LOCK", price: 5000, daily: "0", cycle: "3d", total: 13000 },
-    { id: "p3", name: "LipaShield", category: "LOCK", price: 50000, daily: "0", cycle: "2d", total: 75000 },
-    { id: "p4", name: "LipaControl", category: "LOCK", price: 100000, daily: "0", cycle: "6d", total: 300000 },
-    { id: "p5", name: "LipaCredit", category: "LOCK", price: 150000, daily: "0", cycle: "5d", total: 450000 },
-    { id: "p6", name: "LipaDirect", category: "LOCK", price: 200000, daily: "0", cycle: "2d", total: 300000 },
-    { id: "p7", name: "LipaOmni", category: "LOCK", price: 75000, daily: "0", cycle: "2d", total: 110000 },
-    { id: "p8", name: "LipaAdmin", category: "LOCK", price: 20000, daily: "0", cycle: "5d", total: 50000 },
-    { id: "p9", name: "LipaLedger", category: "LOCK", price: 50000, daily: "0", cycle: "3d", total: 80000 },
-    { id: "p10", name: "LipaBridge", category: "LOCK", price: 180000, daily: "0", cycle: "4d", total: 400000 },
-    { id: "p11", name: "LipaConnect", category: "LOCK", price: 250000, daily: "0", cycle: "3d", total: 500000 },
-    { id: "p12", name: "LipaSDK", category: "LOCK", price: 500000, daily: "0", cycle: "2d", total: 100000 },
-    { id: "p13", name: "LipaGateway", category: "LOCK", price: 800000, daily: "0", cycle: "2d", total: 2000000 },
-    { id: "p14", name: "LipaX", category: "LOCK", price: 1000000, daily: "0", cycle: "2d", total: 3000000 },
-    { id: "p15", name: "LipaDashboard", category: "LOCK", price: 2000000, daily: "0", cycle: "2d", total: 4500000 },
+    // --- LOCK PLANS (15) ---
+    { id: "p1", name: "LipaVault", category: "LOCK", price: 10000, daily: "0", cycle: "3d", total: 25000, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400&auto=format&fit=crop" },
+    { id: "p2", name: "LipaCore", category: "LOCK", price: 5000, daily: "0", cycle: "3d", total: 13000, img: "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?q=80&w=400&auto=format&fit=crop" },
+    { id: "p3", name: "LipaShield", category: "LOCK", price: 50000, daily: "0", cycle: "2d", total: 75000, img: "https://images.unsplash.com/photo-1563013544-824ae1b704d3?q=80&w=400&auto=format&fit=crop" },
+    { id: "p4", name: "LipaControl", category: "LOCK", price: 100000, daily: "0", cycle: "6d", total: 300000, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400&auto=format&fit=crop" },
+    { id: "p5", name: "LipaCredit", category: "LOCK", price: 150000, daily: "0", cycle: "5d", total: 450000, img: "https://images.unsplash.com/photo-1563986768609-322da13575f3?q=80&w=400&auto=format&fit=crop" },
+    { id: "p6", name: "LipaDirect", category: "LOCK", price: 200000, daily: "0", cycle: "2d", total: 300000, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400&auto=format&fit=crop" },
+    { id: "p7", name: "LipaOmni", category: "LOCK", price: 75000, daily: "0", cycle: "2d", total: 110000, img: "https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=400&auto=format&fit=crop" },
+    { id: "p8", name: "LipaAdmin", category: "LOCK", price: 20000, daily: "0", cycle: "5d", total: 50000, img: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=400&auto=format&fit=crop" },
+    { id: "p9", name: "LipaLedger", category: "LOCK", price: 50000, daily: "0", cycle: "3d", total: 80000, img: "https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?q=80&w=400&auto=format&fit=crop" },
+    { id: "p10", name: "LipaBridge", category: "LOCK", price: 180000, daily: "0", cycle: "4d", total: 400000, img: "https://images.unsplash.com/photo-1506318137071-a8e063b4bec0?q=80&w=400&auto=format&fit=crop" },
+    { id: "p11", name: "LipaConnect", category: "LOCK", price: 250000, daily: "0", cycle: "3d", total: 500000, img: "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?q=80&w=400&auto=format&fit=crop" },
+    { id: "p12", name: "LipaSDK", category: "LOCK", price: 500000, daily: "0", cycle: "2d", total: 100000, img: "https://images.unsplash.com/photo-1555066931-4365d14bab8c?q=80&w=400&auto=format&fit=crop" },
+    { id: "p13", name: "LipaGateway", category: "LOCK", price: 800000, daily: "0", cycle: "2d", total: 2000000, img: "https://images.unsplash.com/photo-1518770660439-4636190af475?q=80&w=400&auto=format&fit=crop" },
+    { id: "p14", name: "LipaX", category: "LOCK", price: 1000000, daily: "0", cycle: "2d", total: 3000000, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400&auto=format&fit=crop" },
+    { id: "p15", name: "LipaDashboard", category: "LOCK", price: 2000000, daily: "0", cycle: "2d", total: 4500000, img: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?q=80&w=400&auto=format&fit=crop" },
 
-    // DAILY PAYOUTS (10)
-    { id: "p16", name: "LipaFlow", category: "DAILY_PAYOUT", price: 5000, daily: "2,000", cycle: "5d", total: 10000 },
-    { id: "p17", name: "LipaPulse", category: "DAILY_PAYOUT", price: 10000, daily: "5,000", cycle: "3d", total: 15000 },
-    { id: "p18", name: "LipaRewards", category: "DAILY_PAYOUT", price: 25000, daily: "5,000", cycle: "10d", total: 50000 },
-    { id: "p19", name: "LipaSub", category: "DAILY_PAYOUT", price: 50000, daily: "15,000", cycle: "8d", total: 120000 },
-    { id: "p20", name: "LipaSpend", category: "DAILY_PAYOUT", price: 100000, daily: "25,000", cycle: "9d", total: 225000 },
-    { id: "p21", name: "LipaSplit", category: "DAILY_PAYOUT", price: 150000, daily: "40,000", cycle: "8d", total: 320000 },
-    { id: "p22", name: "LipaPaylink", category: "DAILY_PAYOUT", price: 250000, daily: "70,000", cycle: "9d", total: 630000 },
-    { id: "p23", name: "LipaInvoice", category: "DAILY_PAYOUT", price: 500000, daily: "150,000", cycle: "13d", total: 1950000 },
-    { id: "p24", name: "LipaInsights", category: "DAILY_PAYOUT", price: 1000000, daily: "300,000", cycle: "10d", total: 3000000 },
-    { id: "p25", name: "LipaVirtual", category: "DAILY_PAYOUT", price: 2000000, daily: "700,000", cycle: "8d", total: 5600000 },
+    // --- DAILY PAYOUTS (10) ---
+    { id: "p16", name: "LipaFlow", category: "DAILY_PAYOUT", price: 5000, daily: "2,000", cycle: "5d", total: 10000, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400&auto=format&fit=crop" },
+    { id: "p17", name: "LipaPulse", category: "DAILY_PAYOUT", price: 10000, daily: "5,000", cycle: "3d", total: 15000, img: "https://images.unsplash.com/photo-1504868584819-f8e8b4b6d7e3?q=80&w=400&auto=format&fit=crop" },
+    { id: "p18", name: "LipaRewards", category: "DAILY_PAYOUT", price: 25000, daily: "5,000", cycle: "10d", total: 50000, img: "https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?q=80&w=400&auto=format&fit=crop" },
+    { id: "p19", name: "LipaSub", category: "DAILY_PAYOUT", price: 50000, daily: "15,000", cycle: "8d", total: 120000, img: "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?q=80&w=400&auto=format&fit=crop" },
+    { id: "p20", name: "LipaSpend", category: "DAILY_PAYOUT", price: 100000, daily: "25,000", cycle: "9d", total: 225000, img: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?q=80&w=400&auto=format&fit=crop" },
+    { id: "p21", name: "LipaSplit", category: "DAILY_PAYOUT", price: 150000, daily: "40,000", cycle: "8d", total: 320000, img: "https://images.unsplash.com/photo-1553877522-43269d4ea984?q=80&w=400&auto=format&fit=crop" },
+    { id: "p22", name: "LipaPaylink", category: "DAILY_PAYOUT", price: 250000, daily: "70,000", cycle: "9d", total: 630000, img: "https://images.unsplash.com/photo-1586880244386-8b3e34c8382c?q=80&w=400&auto=format&fit=crop" },
+    { id: "p23", name: "LipaInvoice", category: "DAILY_PAYOUT", price: 500000, daily: "150,000", cycle: "13d", total: 1950000, img: "https://images.unsplash.com/photo-1554224154-26032ffc0d07?q=80&w=400&auto=format&fit=crop" },
+    { id: "p24", name: "LipaInsights", category: "DAILY_PAYOUT", price: 1000000, daily: "300,000", cycle: "10d", total: 3000000, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400&auto=format&fit=crop" },
+    { id: "p25", name: "LipaVirtual", category: "DAILY_PAYOUT", price: 2000000, daily: "700,000", cycle: "8d", total: 5600000, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400&auto=format&fit=crop" },
 
-    // 24HR UNLOCK (10)
-    { id: "p26", name: "LipaTap", category: "UNLOCK_24H", price: 5000, daily: "2,500", cycle: "4d", total: 10000 },
-    { id: "p27", name: "LipaScan", category: "UNLOCK_24H", price: 10000, daily: "4,500", cycle: "4d", total: 18000 },
-    { id: "p28", name: "LipaGo", category: "UNLOCK_24H", price: 25000, daily: "10,000", cycle: "4d", total: 40000 },
-    { id: "p29", name: "LipaPocket", category: "UNLOCK_24H", price: 50000, daily: "20,000", cycle: "4d", total: 80000 },
-    { id: "p30", name: "LipaWallet", category: "UNLOCK_24H", price: 75000, daily: "30,000", cycle: "4d", total: 120000 },
-    { id: "p31", name: "LipaP2P", category: "UNLOCK_24H", price: 100000, daily: "40,000", cycle: "4d", total: 160000 },
-    { id: "p32", name: "LipaSoftPOS", category: "UNLOCK_24H", price: 150000, daily: "70,000", cycle: "4d", total: 280000 },
-    { id: "p33", name: "LipaTerminal", category: "UNLOCK_24H", price: 250000, daily: "100,000", cycle: "4d", total: 400000 },
-    { id: "p34", name: "LipaCheckout", category: "UNLOCK_24H", price: 500000, daily: "250,000", cycle: "4d", total: 1000000 },
-    { id: "p35", name: "LipaRegister", category: "UNLOCK_24H", price: 1000000, daily: "500,000", cycle: "4d", total: 2000000 },
+    // --- 24HR UNLOCK (10) ---
+    { id: "p26", name: "LipaTap", category: "UNLOCK_24H", price: 5000, daily: "2,500", cycle: "4d", total: 10000, img: "https://images.unsplash.com/photo-1563013544-824ae1b704d3?q=80&w=400&auto=format&fit=crop" },
+    { id: "p27", name: "LipaScan", category: "UNLOCK_24H", price: 10000, daily: "4,500", cycle: "4d", total: 18000, img: "https://images.unsplash.com/photo-1601597111158-2fceff292cdc?q=80&w=400&auto=format&fit=crop" },
+    { id: "p28", name: "LipaGo", category: "UNLOCK_24H", price: 25000, daily: "10,000", cycle: "4d", total: 40000, img: "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?q=80&w=400&auto=format&fit=crop" },
+    { id: "p29", name: "LipaPocket", category: "UNLOCK_24H", price: 50000, daily: "20,000", cycle: "4d", total: 80000, img: "https://images.unsplash.com/photo-1556742044-3c52d6e88c62?q=80&w=400&auto=format&fit=crop" },
+    { id: "p30", name: "LipaWallet", category: "UNLOCK_24H", price: 75000, daily: "30,000", cycle: "4d", total: 120000, img: "https://images.unsplash.com/photo-1621504450181-5d356f61d307?q=80&w=400&auto=format&fit=crop" },
+    { id: "p31", name: "LipaP2P", category: "UNLOCK_24H", price: 100000, daily: "40,000", cycle: "4d", total: 160000, img: "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?q=80&w=400&auto=format&fit=crop" },
+    { id: "p32", name: "LipaSoftPOS", category: "UNLOCK_24H", price: 150000, daily: "70,000", cycle: "4d", total: 280000, img: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?q=80&w=400&auto=format&fit=crop" },
+    { id: "p33", name: "LipaTerminal", category: "UNLOCK_24H", price: 250000, daily: "100,000", cycle: "4d", total: 400000, img: "https://images.unsplash.com/photo-1518770660439-4636190af475?q=80&w=400&auto=format&fit=crop" },
+    { id: "p34", name: "LipaCheckout", category: "UNLOCK_24H", price: 500000, daily: "250,000", cycle: "4d", total: 1000000, img: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?q=80&w=400&auto=format&fit=crop" },
+    { id: "p35", name: "LipaRegister", category: "UNLOCK_24H", price: 1000000, daily: "500,000", cycle: "4d", total: 2000000, img: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?q=80&w=400&auto=format&fit=crop" },
   ];
 
   useEffect(() => {
@@ -172,9 +167,8 @@ export default function HomePage() {
 
       {/* Product List (Horizontal Cards) */}
       <div className="px-5 space-y-4">
-        {filteredProducts.map((product, index) => {
+        {filteredProducts.map((product) => {
           const isPurchased = purchasedIds.includes(product.id);
-          const imgUrl = index % 3 === 0 ? images.LOCK : index % 3 === 1 ? images.DAILY_PAYOUT : images.UNLOCK_24H;
 
           let btnText = "";
           let btnClass = "bg-[#7B61FF] hover:bg-[#6a52df] text-white shadow-[0_0_15px_rgba(123,97,255,0.4)]";
@@ -191,11 +185,11 @@ export default function HomePage() {
           }
 
           return (
-            <div key={product.id} className="bg-[#12141D] border border-gray-800 rounded-3xl overflow-hidden flex flex-row shadow-lg">
+            <div key={product.id} className="bg-[#12141D] border border-gray-800 rounded-3xl overflow-hidden flex flex-row shadow-lg h-[150px]">
               
               {/* Left Side: Image & Badge */}
-              <div className="w-[40%] relative">
-                <img src={imgUrl} alt={product.name} className="w-full h-full object-cover" />
+              <div className="w-[40%] relative h-full">
+                <img src={product.img} alt={product.name} className="w-full h-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent to-[#12141D]"></div>
                 <div className="absolute top-3 left-3 bg-[#7B61FF] text-white text-[10px] font-bold px-2.5 py-1 rounded-md shadow-lg">
                   {product.cycle} Days
@@ -205,9 +199,9 @@ export default function HomePage() {
               {/* Right Side: Details */}
               <div className="w-[60%] p-4 flex flex-col justify-between z-10">
                 <div>
-                  <h3 className="text-white font-extrabold text-[15px] leading-tight mb-2">{product.name}</h3>
+                  <h3 className="text-white font-extrabold text-[15px] leading-tight mb-1">{product.name}</h3>
                   
-                  <div className="space-y-1 mb-3">
+                  <div className="space-y-1 mb-2">
                     <div className="flex justify-between items-center">
                       <span className="text-[10px] text-gray-400 font-bold uppercase">Daily</span>
                       <span className="text-xs font-bold text-[#00D2FF]">UGX {product.daily}</span>
@@ -218,15 +212,15 @@ export default function HomePage() {
                     </div>
                   </div>
 
-                  <div className="mb-4">
-                    <span className="text-lg font-black text-white">UGX {product.price.toLocaleString()}</span>
+                  <div>
+                    <span className="text-base font-black text-white">UGX {product.price.toLocaleString()}</span>
                   </div>
                 </div>
 
                 <button 
                   onClick={() => handlePurchase(product)}
                   disabled={isPurchased || isProcessing}
-                  className={`w-full font-bold py-2.5 rounded-xl text-xs transition-all ${btnClass}`}
+                  className={`w-full font-bold py-2 rounded-xl text-xs transition-all ${btnClass}`}
                 >
                   {isProcessing ? "Wait..." : btnText}
                 </button>
@@ -237,4 +231,4 @@ export default function HomePage() {
       </div>
     </div>
   );
-                                                      }
+     }
