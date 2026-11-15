@@ -1,12 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export default function HomePage() {
-  // State to track which tab is active
   const [activeTab, setActiveTab] = useState("ALL");
+  const [purchased, setPurchased] = useState<number[]>([]);
 
-  // Navigation Tabs
+  // Load purchased items from local storage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem("purchasedProducts");
+    if (saved) setPurchased(JSON.parse(saved));
+  }, []);
+
+  const handlePurchase = (id: number) => {
+    if (purchased.includes(id)) return; // Already purchased
+    const newPurchased = [...purchased, id];
+    setPurchased(newPurchased);
+    localStorage.setItem("purchasedProducts", JSON.stringify(newPurchased));
+    alert("Product activated successfully! Check your Income tab.");
+  };
+
   const tabs = [
     { id: "ALL", label: "All" },
     { id: "LOCK", label: "Lock Plans" },
@@ -14,9 +27,15 @@ export default function HomePage() {
     { id: "UNLOCK_24H", label: "24Hr Unlock" },
   ];
 
-  // FULL LIST OF 35 PRODUCTS
+  // Images for categories
+  const images = {
+    LOCK: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400&auto=format&fit=crop", // Vault/Tech
+    DAILY_PAYOUT: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400&auto=format&fit=crop", // Charts
+    UNLOCK_24H: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400&auto=format&fit=crop", // Speed/Wallet
+  };
+
   const products = [
-    // --- LOCK PLANS (15 Products) ---
+    // --- LOCK PLANS ---
     { id: 1, name: "LipaVault", category: "LOCK", price: 10000, daily: "0", cycle: "3d", total: 25000 },
     { id: 2, name: "LipaCore", category: "LOCK", price: 5000, daily: "0", cycle: "3d", total: 13000 },
     { id: 3, name: "LipaShield", category: "LOCK", price: 50000, daily: "0", cycle: "2d", total: 75000 },
@@ -33,7 +52,7 @@ export default function HomePage() {
     { id: 14, name: "LipaX", category: "LOCK", price: 1000000, daily: "0", cycle: "2d", total: 3000000 },
     { id: 15, name: "LipaDashboard", category: "LOCK", price: 2000000, daily: "0", cycle: "2d", total: 4500000 },
 
-    // --- DAILY PAYOUTS (10 Products) ---
+    // --- DAILY PAYOUTS ---
     { id: 16, name: "LipaFlow", category: "DAILY_PAYOUT", price: 5000, daily: "2,000", cycle: "5d", total: 10000 },
     { id: 17, name: "LipaPulse", category: "DAILY_PAYOUT", price: 10000, daily: "5,000", cycle: "3d", total: 15000 },
     { id: 18, name: "LipaRewards", category: "DAILY_PAYOUT", price: 25000, daily: "5,000", cycle: "10d", total: 50000 },
@@ -45,7 +64,7 @@ export default function HomePage() {
     { id: 24, name: "LipaInsights", category: "DAILY_PAYOUT", price: 1000000, daily: "300,000", cycle: "10d", total: 3000000 },
     { id: 25, name: "LipaVirtual", category: "DAILY_PAYOUT", price: 2000000, daily: "700,000", cycle: "8d", total: 5600000 },
 
-    // --- 24HR UNLOCK (10 Products) ---
+    // --- 24HR UNLOCK ---
     { id: 26, name: "LipaTap", category: "UNLOCK_24H", price: 5000, daily: "2,500", cycle: "4d", total: 10000 },
     { id: 27, name: "LipaScan", category: "UNLOCK_24H", price: 10000, daily: "4,500", cycle: "4d", total: 18000 },
     { id: 28, name: "LipaGo", category: "UNLOCK_24H", price: 25000, daily: "10,000", cycle: "4d", total: 40000 },
@@ -58,19 +77,14 @@ export default function HomePage() {
     { id: 35, name: "LipaRegister", category: "UNLOCK_24H", price: 1000000, daily: "500,000", cycle: "4d", total: 2000000 },
   ];
 
-  // Filter logic based on selected tab
-  const filteredProducts = activeTab === "ALL" 
-    ? products 
-    : products.filter(p => p.category === activeTab);
+  const filteredProducts = activeTab === "ALL" ? products : products.filter(p => p.category === activeTab);
 
   return (
     <div className="min-h-screen bg-black text-white pb-24">
-      {/* Header */}
       <div className="p-5 pt-8">
         <h1 className="text-3xl font-extrabold text-[#00d2ff] tracking-tight">LIPA Technologies</h1>
       </div>
 
-      {/* Tabs */}
       <div className="flex space-x-6 px-5 border-b border-gray-800 overflow-x-auto no-scrollbar">
         {tabs.map((tab) => (
           <button
@@ -85,61 +99,73 @@ export default function HomePage() {
         ))}
       </div>
 
-      {/* Product Grid */}
       <div className="p-4 grid grid-cols-2 gap-4">
-        {filteredProducts.map((product) => (
-          <div 
-            key={product.id} 
-            className="bg-[#051105] border border-green-500/60 rounded-2xl p-3 flex flex-col justify-between shadow-[0_0_15px_rgba(34,197,94,0.1)] relative"
-          >
-            
-            <div>
-              {/* Product Image/Placeholder (SVG) */}
-              <div className="w-full h-24 bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl mb-3 flex items-center justify-center border border-gray-700/50">
-                 <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#00d2ff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="opacity-50">
-                   <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-                 </svg>
+        {filteredProducts.map((product) => {
+          const isPurchased = purchased.includes(product.id);
+          const imgUrl = images[product.category as keyof typeof images];
+
+          // Button Logic
+          let btnText = "";
+          let btnClass = "bg-[#00d2ff] hover:bg-cyan-400 text-black shadow-[0_0_10px_rgba(0,210,255,0.3)]";
+          if (isPurchased) {
+            btnClass = "bg-gray-800 text-gray-400 cursor-not-allowed border border-gray-700";
+            if (product.category === "LOCK") btnText = "Locked In";
+            else if (product.category === "DAILY_PAYOUT") btnText = "Purchased";
+            else if (product.category === "UNLOCK_24H") {
+              btnText = "Unlocked";
+              btnClass = "bg-green-900/40 text-green-400 border border-green-800 cursor-not-allowed";
+            }
+          } else {
+            if (product.category === "LOCK") btnText = "Lock In";
+            else if (product.category === "DAILY_PAYOUT") btnText = "Buy Now";
+            else if (product.category === "UNLOCK_24H") btnText = "Locked";
+          }
+
+          return (
+            <div key={product.id} className="bg-[#051105] border border-green-500/40 rounded-2xl flex flex-col justify-between overflow-hidden shadow-lg">
+              
+              {/* Image Section */}
+              <div className="w-full h-28 relative">
+                <img src={imgUrl} alt={product.name} className="w-full h-full object-cover opacity-60" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#051105] to-transparent"></div>
               </div>
 
-              {/* Product Info */}
-              <h3 className="text-[#00d2ff] font-bold text-lg leading-tight truncate">{product.name}</h3>
-              <p className="text-gray-400 text-[10px] uppercase tracking-wider mb-2 mt-0.5">{product.category.replace('_', ' ')}</p>
+              <div className="p-3 pt-0">
+                <h3 className="text-[#00d2ff] font-bold text-lg leading-tight truncate">{product.name}</h3>
+                <p className="text-gray-400 text-[10px] uppercase tracking-wider mb-2 mt-0.5">{product.category.replace('_', ' ')}</p>
 
-              {/* Price */}
-              <p className="text-gray-500 text-[10px] font-bold tracking-wider mb-0.5">PRICE</p>
-              <p className="text-white text-xl font-bold">
-                {product.price.toLocaleString()} <span className="text-xs font-medium text-gray-400">UGX</span>
-              </p>
+                <p className="text-gray-500 text-[10px] font-bold tracking-wider mb-0.5">PRICE</p>
+                <p className="text-white text-xl font-bold mb-3">
+                  {product.price.toLocaleString()} <span className="text-xs font-medium text-gray-400">UGX</span>
+                </p>
+
+                <div className="bg-black/60 rounded-xl p-2 mb-3 flex justify-between text-center border border-gray-800">
+                  <div className="flex-1 border-r border-gray-800">
+                    <p className="text-gray-500 text-[9px] font-bold">DAILY</p>
+                    <p className="text-[#00d2ff] text-[11px] font-bold">{product.daily}</p>
+                  </div>
+                  <div className="flex-1 border-r border-gray-800">
+                    <p className="text-gray-500 text-[9px] font-bold">CYCLE</p>
+                    <p className="text-[#00d2ff] text-[11px] font-bold">{product.cycle}</p>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-gray-500 text-[9px] font-bold">TOTAL</p>
+                    <p className="text-[#00d2ff] text-[11px] font-bold">{product.total.toLocaleString()}</p>
+                  </div>
+                </div>
+
+                <button 
+                  onClick={() => handlePurchase(product.id)}
+                  disabled={isPurchased}
+                  className={`w-full font-extrabold py-2.5 rounded-xl text-sm transition-all ${btnClass}`}
+                >
+                  {btnText}
+                </button>
+              </div>
             </div>
-
-            {/* Stats Box */}
-            <div className="bg-black/60 rounded-xl p-2 mt-3 mb-3 flex justify-between text-center border border-gray-800">
-              <div className="flex-1 border-r border-gray-800">
-                <p className="text-gray-500 text-[9px] font-bold">DAILY</p>
-                <p className="text-[#00d2ff] text-[11px] font-bold">{product.daily}</p>
-              </div>
-              <div className="flex-1 border-r border-gray-800">
-                <p className="text-gray-500 text-[9px] font-bold">CYCLE</p>
-                <p className="text-[#00d2ff] text-[11px] font-bold">{product.cycle}</p>
-              </div>
-              <div className="flex-1">
-                <p className="text-gray-500 text-[9px] font-bold">TOTAL</p>
-                <p className="text-[#00d2ff] text-[11px] font-bold">{product.total.toLocaleString()}</p>
-              </div>
-            </div>
-
-            {/* Action Button */}
-            <button className="w-full bg-[#00d2ff] hover:bg-cyan-400 text-black font-extrabold py-2.5 rounded-xl text-sm transition-all shadow-[0_0_10px_rgba(0,210,255,0.3)]">
-              Lock in
-            </button>
-          </div>
-        ))}
+          );
+        })}
       </div>
-      
-      {/* Message if no products found (fallback) */}
-      {filteredProducts.length === 0 && (
-        <div className="text-center text-gray-500 mt-10">No products available in this category.</div>
-      )}
     </div>
   );
      }
