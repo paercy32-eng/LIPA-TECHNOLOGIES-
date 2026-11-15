@@ -8,7 +8,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Icons with Neon Purple Color
+// Icons
 const PhoneIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#7B61FF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-90">
     <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
@@ -76,10 +76,26 @@ function AuthForm() {
 
     try {
       if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        // 1. Sign In
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        router.push("/dashboard/home");
+
+        // 2. Check if this user is an Admin
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("is_admin")
+          .eq("id", data.user.id)
+          .single();
+
+        // 3. Redirect based on role
+        if (profile?.is_admin) {
+          router.push("/admin");
+        } else {
+          router.push("/dashboard/home");
+        }
+        
       } else {
+        // Register
         const { error } = await supabase.auth.signUp({ 
           email, 
           password,
@@ -257,4 +273,4 @@ export default function AuthPage() {
       </div>
     </main>
   );
-    }
+      }
