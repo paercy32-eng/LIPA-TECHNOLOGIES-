@@ -18,14 +18,17 @@ export default function ProfilePage() {
   const [boundNumber, setBoundNumber] = useState("");
   const [displayName, setDisplayName] = useState("");
   
+  // Modals State
   const [isDepositOpen, setIsDepositOpen] = useState(false);
   const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
   const [isBindOpen, setIsBindOpen] = useState(false);
   
+  // Form States
   const [depositAmount, setDepositAmount] = useState("");
   const [depositPhone, setDepositPhone] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
   
+  // Bind Form State
   const [bindName, setBindName] = useState("");
   const [bindPhone, setBindPhone] = useState("");
   
@@ -43,7 +46,12 @@ export default function ProfilePage() {
         setDepositPhone(phone); 
         setUserId(user.id);
 
-        const { data: profile } = await supabase.from("profiles").select("display_name, full_name, bound_number").eq("id", user.id).single();
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("display_name, full_name, bound_number")
+          .eq("id", user.id)
+          .single();
+          
         if (profile) {
           setDisplayName(profile.display_name || `user ${phone.slice(-4)}`);
           setFullName(profile.full_name || "");
@@ -61,14 +69,18 @@ export default function ProfilePage() {
     getUser();
   }, [router]);
 
+  // --- BIND ACCOUNT LOGIC ---
   const handleBindSubmit = async () => {
     if (!bindName || !bindPhone) return setMessage({ text: "Please fill all fields", isError: true });
     if (bindPhone.length < 9) return setMessage({ text: "Invalid phone number", isError: true });
 
     setIsProcessing(true);
-    const { error } = await supabase.from("profiles").update({ full_name: bindName, bound_number: bindPhone }).eq("id", userId);
+    const { error } = await supabase.from("profiles").update({
+      full_name: bindName,
+      bound_number: bindPhone
+    }).eq("id", userId);
+
     setIsProcessing(false);
-    
     if (error) {
       setMessage({ text: error.message, isError: true });
     } else {
@@ -79,6 +91,7 @@ export default function ProfilePage() {
     }
   };
 
+  // --- DEPOSIT LOGIC ---
   const handleDepositSubmit = async () => {
     const amount = Number(depositAmount);
     if (amount < 500) return setMessage({ text: "Minimum deposit is 500 UGX", isError: true });
@@ -104,6 +117,7 @@ export default function ProfilePage() {
     }
   };
 
+  // --- WITHDRAW LOGIC ---
   const handleWithdrawSubmit = async () => {
     if (!boundNumber) {
       setIsWithdrawOpen(false);
@@ -118,8 +132,14 @@ export default function ProfilePage() {
     setMessage({ text: "", isError: false });
 
     try {
-      const { count: activeInv, error: invError } = await supabase.from("investments").select("*", { count: 'exact', head: true }).eq("user_id", userId).eq("status", "ACTIVE");
+      const { count: activeInv, error: invError } = await supabase
+        .from("investments")
+        .select("*", { count: 'exact', head: true })
+        .eq("user_id", userId)
+        .eq("status", "ACTIVE");
+
       if (invError) throw invError;
+
       if (activeInv === 0) {
         setIsProcessing(false);
         return setMessage({ text: "You must have an active product to withdraw.", isError: true });
@@ -218,9 +238,76 @@ export default function ProfilePage() {
         <span className="font-bold text-red-500 tracking-widest uppercase text-sm">Log Out</span>
       </button>
 
-      {/* Modals (Bind, Deposit, Withdraw) */}
-      {/* Paste your modal code here from previous steps, just change bg-black to bg-white, text-white to text-gray-900 etc. */}
-      
+      {/* --- BIND ACCOUNT MODAL --- */}
+      {isBindOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-bold text-gray-900">Bind Account</h3>
+              <button onClick={() => setIsBindOpen(false)} className="text-gray-400 hover:text-gray-900">✕</button>
+            </div>
+            <label className="block text-[10px] font-bold tracking-widest text-gray-500 uppercase mb-1">Full Names (as on Mobile Money)</label>
+            <input type="text" placeholder="e.g. John Doe" value={bindName} onChange={(e) => setBindName(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 text-gray-900 mb-4" />
+            <label className="block text-[10px] font-bold tracking-widest text-gray-500 uppercase mb-1">Mobile Money Number</label>
+            <input type="tel" placeholder="e.g. 0700123456" value={bindPhone} onChange={(e) => setBindPhone(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 text-gray-900 mb-6" />
+            <button onClick={handleBindSubmit} disabled={isProcessing} className="w-full font-bold py-4 rounded-xl text-white bg-blue-600 hover:bg-blue-700">
+              {isProcessing ? 'Saving...' : boundNumber ? 'Update Account' : 'Save Account'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* --- DEPOSIT MODAL --- */}
+      {isDepositOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-bold text-gray-900">Deposit Funds</h3>
+              <button onClick={() => setIsDepositOpen(false)} className="text-gray-400 hover:text-gray-900">✕</button>
+            </div>
+            {message.text && <div className={`text-center p-3 mb-4 rounded-xl text-sm font-medium border ${message.isError ? 'bg-red-50 text-red-600 border-red-100' : 'bg-green-50 text-green-600 border-green-100'}`}>{message.text}</div>}
+            <label className="block text-[10px] font-bold tracking-widest text-gray-500 uppercase mb-1">Amount (UGX)</label>
+            <input type="number" placeholder="Minimum 500" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-bold text-lg mb-4 focus:outline-none focus:border-blue-500" />
+            <label className="block text-[10px] font-bold tracking-widest text-gray-500 uppercase mb-1">Phone Number to Pay From</label>
+            <input type="tel" placeholder="e.g. 0700123456" value={depositPhone} onChange={(e) => setDepositPhone(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-bold text-lg mb-6 focus:outline-none focus:border-blue-500" />
+            <button onClick={handleDepositSubmit} disabled={isProcessing} className="w-full font-bold py-4 rounded-xl text-white bg-green-600 hover:bg-green-700">{isProcessing ? 'Processing...' : 'Confirm Deposit'}</button>
+          </div>
+        </div>
+      )}
+
+      {/* --- WITHDRAW MODAL --- */}
+      {isWithdrawOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-bold text-gray-900">Withdraw Funds</h3>
+              <button onClick={() => setIsWithdrawOpen(false)} className="text-gray-400 hover:text-gray-900">✕</button>
+            </div>
+            
+            {message.text && <div className={`text-center p-3 mb-4 rounded-xl text-sm font-medium border ${message.isError ? 'bg-red-50 text-red-600 border-red-100' : 'bg-green-50 text-green-600 border-green-100'}`}>{message.text}</div>}
+
+            {!boundNumber ? (
+              <div className="text-center py-6">
+                <p className="text-gray-500 text-sm mb-4">You must bind an account before you can withdraw.</p>
+                <button onClick={() => { setIsWithdrawOpen(false); setIsBindOpen(true); }} className="bg-purple-600 text-white font-bold py-3 px-6 rounded-xl hover:bg-purple-700">Bind Account Now</button>
+              </div>
+            ) : (
+              <>
+                <div className="bg-blue-50 border border-blue-100 p-3 rounded-xl mb-4">
+                  <p className="text-xs text-blue-700">Withdrawing to: <b>{fullName}</b> ({boundNumber}). A fee of <b>13%</b> applies.</p>
+                </div>
+                <label className="block text-[10px] font-bold tracking-widest text-gray-500 uppercase mb-1">Amount (UGX)</label>
+                <input type="number" placeholder="Minimum 3,000" value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-bold text-lg mb-2 focus:outline-none focus:border-blue-500" />
+                <div className="flex justify-between items-center mb-6 px-1">
+                  <p className="text-xs text-gray-500">Available: UGX {Number(balance).toLocaleString()}</p>
+                  {withdrawAmount && <p className="text-xs text-green-600 font-bold">You Receive: UGX {(Number(withdrawAmount) * 0.87).toLocaleString()}</p>}
+                </div>
+                <button onClick={handleWithdrawSubmit} disabled={isProcessing} className="w-full font-bold py-4 rounded-xl text-white bg-blue-600 hover:bg-blue-700">{isProcessing ? 'Processing...' : 'Request Withdrawal'}</button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
-                                                                                                                  }
+      }
