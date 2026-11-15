@@ -42,7 +42,7 @@ export async function POST(req: Request) {
 
     console.log(`✅ Credited ${amount} UGX to user ${transaction.user_id}`);
 
-    // --- NEW: REFERRAL COMMISSION LOGIC (ONLY ON FIRST DEPOSIT) ---
+    // --- MULTI-LEVEL REFERRAL COMMISSION (ONLY ON FIRST DEPOSIT) ---
     try {
       // Check if this was their first completed deposit
       const { count: depositCount } = await supabase
@@ -53,38 +53,51 @@ export async function POST(req: Request) {
         .eq("status", "COMPLETED");
 
       if (depositCount === 1) {
-        // It's their first deposit! Find their referrer.
-        const { data: profile } = await supabase.from("profiles").select("referred_by").eq("id", transaction.user_id).single();
+        console.log(`🎉 First deposit for user ${transaction.user_id}. Processing commissions...`);
         
-        if (profile && profile.referred_by) {
-          const referrerId = profile.referred_by;
-          const commissionAmount = Number(amount) * 0.20; // 20% of their FIRST DEPOSIT
+        // Get the profile of the user who just deposited
+        const { data: buyerProfile } = await supabase.from("profiles").select("referred_by").eq("id", transaction.user_id).single();
+        
+        let currentReferrerId = buyerProfile?.referred_by;
+        const commissionRates = [0.20, 0.02, 0.01]; // L1: 20%, L2: 2%, L3: 1%
 
-          // Credit Referrer
-          const { data: refBal } = await supabase.from("balances").select("available, total_commission").eq("user_id", referrerId).single();
+        // Loop through Level 1, 2, and 3
+        for (let level = 1; level <= 3; level++) {
+          if (!currentReferrerId) break; // Stop if there is no higher level
+
+          const commissionAmount = Number(amount) * commissionRates[level - 1];
+
+          // Credit the referrer's balance
+          const { data: refBal } = await supabase.from("balances").select("available, total_commission").eq("user_id", currentReferrerId).single();
+          
           if (refBal) {
             await supabase.from("balances").update({ 
               available: Number(refBal.available) + commissionAmount,
               total_commission: Number(refBal.total_commission) + commissionAmount
-            }).eq("user_id", referrerId);
+            }).eq("user_id", currentReferrerId);
 
-            // Log for referrer
+            // Log the transaction for the referrer
             await supabase.from("transactions").insert({
-              user_id: referrerId,
+              user_id: currentReferrerId,
               type: "COMMISSION",
               amount: commissionAmount,
               status: "COMPLETED",
             });
 
-            // Update referrals table
-            await supabase.from("referrals").insert({
-              referrer_id: referrerId,
+            // Update the referrals table (if it doesn't exist, create it)
+            await supabase.from("referrals").upsert({
+              referrer_id: currentReferrerId,
               referee_id: transaction.user_id,
-              level: 1,
+              level: level,
               commission_earned: commissionAmount
-            });
-            console.log(`💸 Paid ${commissionAmount} referral commission to ${referrerId}`);
+            }, { onConflict: 'referrer_id,referee_id' });
+
+            console.log(`💸 Paid Level ${level} commission (${commissionAmount} UGX) to ${currentReferrerId}`);
           }
+
+          // Move up the chain to find the Level 2 and Level 3 inviters
+          const { data: nextProfile } = await supabase.from("profiles").select("referred_by").eq("id", currentReferrerId).single();
+          currentReferrerId = nextProfile?.referred_by;
         }
       }
     } catch (refError) {
