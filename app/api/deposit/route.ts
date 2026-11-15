@@ -2,14 +2,23 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { randomUUID } from "crypto";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-// Use the SERVICE ROLE KEY here to bypass RLS for server-side inserts
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
 export async function POST(req: Request) {
   try {
-    const { amount, phone, userId } = await req.json();
+    // 1. Check Environment Variables first
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const marzPublicKey = process.env.MARZPAY_PUBLIC_KEY;
+    const marzSecretKey = process.env.MARZPAY_SECRET_KEY;
+
+    if (!supabaseUrl || !supabaseServiceKey || !marzPublicKey || !marzSecretKey) {
+      return NextResponse.json({ error: "Server Error: Missing Environment Variables in Vercel." }, { status: 500 });
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // 2. Get Data
+    const body = await req.json();
+    const { amount, phone, userId } = body;
 
     if (!amount || amount < 500) {
       return NextResponse.json({ error: "Minimum deposit is 500 UGX" }, { status: 400 });
@@ -18,7 +27,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "User not authenticated" }, { status: 401 });
     }
 
-    // Format Phone
+    // 3. Format Phone
     let cleanPhone = phone.replace(/\D/g, '');
     if (cleanPhone.startsWith('0')) {
       cleanPhone = '256' + cleanPhone.substring(1);
@@ -27,10 +36,11 @@ export async function POST(req: Request) {
     }
     const formattedPhone = `+${cleanPhone}`;
 
-    // Setup MarzPay Request
+    // 4. Setup MarzPay
     const reference = randomUUID();
-    const authString = Buffer.from(`${process.env.MARZPAY_PUBLIC_KEY}:${process.env.MARZPAY_SECRET_KEY}`).toString("base64");
+    const authString = Buffer.from(`${marzPublicKey}:${marzSecretKey}`).toString("base64");
     
+    // Automatically detect the URL to send MarzPay back to
     const requestUrl = new URL(req.url);
     const callbackUrl = `${requestUrl.origin}/api/webhook/marzpay`;
 
@@ -42,7 +52,7 @@ export async function POST(req: Request) {
     marzPayload.append("description", "LIPA Wallet Deposit");
     marzPayload.append("callback_url", callbackUrl);
 
-    // Send Request to MarzPay
+    // 5. Send to MarzPay
     const response = await fetch("https://wallet.wearemarz.com/api/v1/collect-money", {
       method: "POST",
       headers: { "Authorization": `Basic ${authString}` },
@@ -52,10 +62,10 @@ export async function POST(req: Request) {
     const data = await response.json();
 
     if (!response.ok) {
-      return NextResponse.json({ error: data.message || "MarzPay error" }, { status: 400 });
+      return NextResponse.json({ error: data.message || "MarzPay rejected the request" }, { status: 400 });
     }
 
-    // Save PENDING transaction in Supabase (Now using Service Role, bypassing RLS)
+    // 6. Save to Database
     const { error: dbError } = await supabase.from("transactions").insert({
       id: reference, 
       user_id: userId, 
@@ -65,14 +75,13 @@ export async function POST(req: Request) {
     });
 
     if (dbError) {
-       console.error("Database Error Details:", dbError);
        return NextResponse.json({ error: "Database error: " + dbError.message }, { status: 500 });
     }
 
     return NextResponse.json({ success: true, message: "USSD Prompt sent!" });
 
   } catch (error: any) {
-    console.error("Server Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("Server Crash:", error);
+    return NextResponse.json({ error: "Server crashed: " + error.message }, { status: 500 });
   }
 }
