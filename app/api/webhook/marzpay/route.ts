@@ -2,24 +2,31 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-// We MUST use the Service Role key here to bypass Row Level Security
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ""; 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    console.log("Webhook received:", body.event_type);
+    console.log("🔔 WEBHOOK RECEIVED:", JSON.stringify(body, null, 2));
 
-    // 1. Check if the payment was successful
+    // 1. Check event type
     if (body.event_type !== "collection.completed") {
-      return NextResponse.json({ received: true }); // Ignore failed/pending
+      console.log(`⚠️ Ignored event: ${body.event_type}`);
+      return NextResponse.json({ received: true }); 
     }
 
-    const reference = body.transaction.reference;
-    const amount = body.transaction.amount.raw;
+    const reference = body.transaction?.reference;
+    const amount = body.transaction?.amount?.raw;
 
-    // 2. Find the PENDING transaction in our database
+    if (!reference || !amount) {
+      console.error("❌ Missing reference or amount in payload");
+      return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+    }
+
+    console.log(`🔍 Searching for transaction: ${reference}`);
+
+    // 2. Find the PENDING transaction
     const { data: transaction, error: txError } = await supabase
       .from("transactions")
       .select("*")
@@ -27,47 +34,52 @@ export async function POST(req: Request) {
       .single();
 
     if (txError || !transaction) {
-      console.error("Transaction not found:", reference);
+      console.error("❌ Transaction not found in DB:", txError);
       return NextResponse.json({ error: "Transaction not found" }, { status: 404 });
     }
 
-    // 3. Idempotency Check (Prevent double crediting if webhook is sent twice)
     if (transaction.status === "COMPLETED") {
+      console.log("✅ Transaction already completed. Ignoring duplicate.");
       return NextResponse.json({ received: true });
     }
 
-    // 4. Update Transaction to COMPLETED
-    await supabase
+    console.log(`💰 Updating transaction ${reference} to COMPLETED`);
+
+    // 3. Update Transaction to COMPLETED
+    const { error: updateError } = await supabase
       .from("transactions")
       .update({ status: "COMPLETED" })
       .eq("id", reference);
 
-    // 5. Fetch current balance and add the deposit
-    const { data: balanceData } = await supabase
+    if (updateError) throw updateError;
+
+    // 4. Fetch current balance
+    const { data: balanceData, error: balFetchError } = await supabase
       .from("balances")
       .select("available")
       .eq("user_id", transaction.user_id)
       .single();
 
+    if (balFetchError) throw balFetchError;
+
     const currentBalance = balanceData?.available || 0;
     const newBalance = Number(currentBalance) + Number(amount);
 
-    // 6. Credit the user's balance
+    console.log(`📈 Updating balance for user ${transaction.user_id} from ${currentBalance} to ${newBalance}`);
+
+    // 5. Credit the user's balance
     const { error: balError } = await supabase
       .from("balances")
       .update({ available: newBalance })
       .eq("user_id", transaction.user_id);
 
-    if (balError) {
-      console.error("Failed to update balance:", balError);
-      return NextResponse.json({ error: "Balance update failed" }, { status: 500 });
-    }
+    if (balError) throw balError;
 
-    console.log(`✅ Credited ${amount} UGX to user ${transaction.user_id}. New balance: ${newBalance}`);
+    console.log(`✅ Successfully credited ${amount} UGX!`);
     return NextResponse.json({ received: true });
 
   } catch (error: any) {
-    console.error("Webhook error:", error);
+    console.error("❌ WEBHOOK ERROR:", error.message);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
