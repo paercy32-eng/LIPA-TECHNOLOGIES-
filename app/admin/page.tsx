@@ -12,6 +12,7 @@ export default function AdminPanel() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("OVERVIEW");
   const [isLoading, setIsLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [stats, setStats] = useState({ totalUsers: 0, totalDeposited: 0, totalInvested: 0 });
@@ -19,19 +20,22 @@ export default function AdminPanel() {
   useEffect(() => {
     const checkAdminAndFetch = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return router.push("/auth"); // CHANGED TO /auth
-
-      const { data: profile } = await supabase.from("profiles").select("is_admin").eq("id", user.id).single();
-      if (!profile?.is_admin) {
-        alert("Access Denied");
-        return router.push("/dashboard/home");
+      if (!user) {
+        setIsLoading(false);
+        return; // Stop loading, show Access Denied (not logged in)
       }
 
-      await fetchAllData();
+      const { data: profile } = await supabase.from("profiles").select("is_admin").eq("id", user.id).single();
+      
+      if (profile?.is_admin) {
+        setIsAdmin(true);
+        await fetchAllData();
+      }
+      
       setIsLoading(false);
     };
     checkAdminAndFetch();
-  }, [router]);
+  }, []);
 
   const fetchAllData = async () => {
     const { data: profiles } = await supabase.from("profiles").select("*, balances(available)").order("created_at", { ascending: false });
@@ -65,6 +69,8 @@ export default function AdminPanel() {
   const handleRejectWithdrawal = async (txId: string, userId: string, amount: number) => {
     if (!confirm("Reject this withdrawal? The amount will be refunded to the user's balance.")) return;
     await supabase.from("transactions").update({ status: "REJECTED" }).eq("id", txId);
+    
+    // Refund balance
     const { data: bal } = await supabase.from("balances").select("available").eq("user_id", userId).single();
     if (bal) {
       const newBalance = Number(bal.available) + Number(amount);
@@ -73,8 +79,36 @@ export default function AdminPanel() {
     fetchAllData();
   };
 
-  if (isLoading) return <div className="min-h-screen bg-black text-white flex items-center justify-center">Verifying Admin...</div>;
+  // --- LOADING SCREEN ---
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center">
+        <div className="w-12 h-12 border-4 border-red-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="font-bold text-gray-400">Verifying Admin Access...</p>
+      </div>
+    );
+  }
 
+  // --- ACCESS DENIED SCREEN ---
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen bg-[#0B0C10] text-white flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-24 h-24 bg-red-900/20 rounded-full flex items-center justify-center mb-6 border border-red-900/50">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+        </div>
+        <h1 className="text-3xl font-black text-white mb-2">Access Denied</h1>
+        <p className="text-gray-400 max-w-xs mb-8">You do not have administrator privileges to view this page.</p>
+        <button 
+          onClick={() => router.push("/dashboard/home")}
+          className="bg-[#7B61FF] hover:bg-[#6a52df] text-white font-bold py-3 px-8 rounded-xl transition"
+        >
+          Return to App
+        </button>
+      </div>
+    );
+  }
+
+  // --- ADMIN PANEL ---
   return (
     <div className="min-h-screen bg-black text-white pb-10">
       <div className="bg-[#121212] p-5 border-b border-gray-800 flex justify-between items-center sticky top-0 z-20">
@@ -110,7 +144,7 @@ export default function AdminPanel() {
                     <p className="text-xs text-gray-400 mt-1">Name: {user.full_name || "Not bound"}</p>
                     <p className="text-xs text-gray-400">Acc: {user.bound_number || "Not bound"}</p>
                   </div>
-                  <span className={`text-[10px] px-2 py-1 rounded-md font-bold ${user.status === 'BANNED' ? 'bg-red-900/30 text-red-400' : 'bg-green-900/30 text-green-400'}`}>{user.status}</span>
+                  <span className={`text-[10px] px-2 py-1 rounded-md font-bold ${user.status === 'BANNED' ? 'bg-red-900/30 text-red-400' : 'bg-green-900/30 text-green-400'}`}>{user.status || 'ACTIVE'}</span>
                 </div>
                 <div className="bg-black/40 p-2 rounded-xl mb-3">
                   <p className="text-[10px] text-gray-500">Balance</p>
@@ -134,7 +168,8 @@ export default function AdminPanel() {
                     </div>
                     <div className="text-right">
                       <h3 className="text-lg font-black text-red-400">UGX {Number(w.amount).toLocaleString()}</h3>
-                      <p className="text-[10px] text-green-400">Net: UGX {(Number(w.amount) * 0.87).toLocaleString()}</p>
+                      {/* NET AMOUNT IS NOW 85% (15% fee) */}
+                      <p className="text-[10px] text-green-400">Net: UGX {(Number(w.amount) * 0.85).toLocaleString()}</p>
                     </div>
                   </div>
                   <div className="flex gap-2 mt-4">
