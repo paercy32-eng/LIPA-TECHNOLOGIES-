@@ -9,7 +9,6 @@ export async function POST(req: Request) {
     const marzPublicKey = process.env.MARZPAY_PUBLIC_KEY;
     const marzSecretKey = process.env.MARZPAY_SECRET_KEY;
 
-    // 1. Check Environment Variables
     if (!supabaseUrl || !supabaseServiceKey || !marzPublicKey || !marzSecretKey) {
       return NextResponse.json({ error: "Server Error: Missing Environment Variables in Vercel." }, { status: 500 });
     }
@@ -17,14 +16,14 @@ export async function POST(req: Request) {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const { amount, phone, userId } = await req.json();
 
-    if (!amount || amount < 500) {
-      return NextResponse.json({ error: "Minimum deposit is 500 UGX" }, { status: 400 });
+    // MINIMUM DEPOSIT CHANGED TO 5000
+    if (!amount || amount < 5000) {
+      return NextResponse.json({ error: "Minimum deposit is 5000 UGX" }, { status: 400 });
     }
     if (!userId) {
       return NextResponse.json({ error: "User not authenticated" }, { status: 401 });
     }
 
-    // 2. Format Phone
     let cleanPhone = phone.replace(/\D/g, '');
     if (cleanPhone.startsWith('0')) {
       cleanPhone = '256' + cleanPhone.substring(1);
@@ -33,7 +32,6 @@ export async function POST(req: Request) {
     }
     const formattedPhone = `+${cleanPhone}`;
 
-    // 3. Setup MarzPay
     const reference = randomUUID();
     const authString = Buffer.from(`${marzPublicKey}:${marzSecretKey}`).toString("base64");
     const requestUrl = new URL(req.url);
@@ -47,32 +45,22 @@ export async function POST(req: Request) {
     marzPayload.append("description", "LIPA Wallet Deposit");
     marzPayload.append("callback_url", callbackUrl);
 
-    // 4. Send to MarzPay
     const response = await fetch("https://wallet.wearemarz.com/api/v1/collect-money", {
       method: "POST",
       headers: { "Authorization": `Basic ${authString}` },
       body: marzPayload,
     });
 
-    // SAFELY READ THE RESPONSE (Prevents the crash)
     const responseText = await response.text();
-
-    if (!responseText) {
-      throw new Error("MarzPay returned an empty response. Check your API keys in Vercel.");
-    }
+    if (!responseText) throw new Error("MarzPay returned an empty response. Check your API keys in Vercel.");
 
     let data;
-    try {
-      data = JSON.parse(responseText);
-    } catch (e) {
-      throw new Error("MarzPay returned a non-JSON response. They might be down.");
-    }
+    try { data = JSON.parse(responseText); } catch (e) { throw new Error("MarzPay returned a non-JSON response."); }
 
     if (!response.ok) {
       return NextResponse.json({ error: data.message || "MarzPay rejected the request" }, { status: 400 });
     }
 
-    // 5. Save to Database
     const { error: dbError } = await supabase.from("transactions").insert({
       id: reference, 
       user_id: userId, 
