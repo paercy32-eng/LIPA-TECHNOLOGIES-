@@ -18,17 +18,14 @@ export default function ProfilePage() {
   const [boundNumber, setBoundNumber] = useState("");
   const [displayName, setDisplayName] = useState("");
   
-  // Modals State
   const [isDepositOpen, setIsDepositOpen] = useState(false);
   const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
   const [isBindOpen, setIsBindOpen] = useState(false);
   
-  // Form States
   const [depositAmount, setDepositAmount] = useState("");
   const [depositPhone, setDepositPhone] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
   
-  // Bind Form State
   const [bindName, setBindName] = useState("");
   const [bindPhone, setBindPhone] = useState("");
   
@@ -46,7 +43,6 @@ export default function ProfilePage() {
         setDepositPhone(phone); 
         setUserId(user.id);
 
-        // Fetch Profile Details including display_name
         const { data: profile } = await supabase
           .from("profiles")
           .select("display_name, full_name, bound_number")
@@ -54,7 +50,6 @@ export default function ProfilePage() {
           .single();
           
         if (profile) {
-          // If display_name exists in DB use it, otherwise generate from last 4 digits of phone
           setDisplayName(profile.display_name || `user ${phone.slice(-4)}`);
           setFullName(profile.full_name || "");
           setBoundNumber(profile.bound_number || "");
@@ -62,7 +57,6 @@ export default function ProfilePage() {
           setBindPhone(profile.bound_number || "");
         }
 
-        // Fetch Balance
         const { data: bal } = await supabase.from("balances").select("available").eq("user_id", user.id).single();
         if (bal) setBalance(bal.available.toString());
       } else {
@@ -72,7 +66,6 @@ export default function ProfilePage() {
     getUser();
   }, [router]);
 
-  // --- BIND ACCOUNT LOGIC ---
   const handleBindSubmit = async () => {
     if (!bindName || !bindPhone) return setMessage({ text: "Please fill all fields", isError: true });
     if (bindPhone.length < 9) return setMessage({ text: "Invalid phone number", isError: true });
@@ -94,10 +87,10 @@ export default function ProfilePage() {
     }
   };
 
-  // --- DEPOSIT LOGIC ---
   const handleDepositSubmit = async () => {
     const amount = Number(depositAmount);
-    if (amount < 5000) return setMessage({ text: "Minimum deposit is 5,000 UGX", isError: true });
+    // Changed minimum to 500
+    if (amount < 500) return setMessage({ text: "Minimum deposit is 500 UGX", isError: true });
     if (!depositPhone || depositPhone.length < 9) return setMessage({ text: "Please enter a valid phone number", isError: true });
 
     setIsProcessing(true);
@@ -120,7 +113,6 @@ export default function ProfilePage() {
     }
   };
 
-  // --- WITHDRAW LOGIC ---
   const handleWithdrawSubmit = async () => {
     if (!boundNumber) {
       setIsWithdrawOpen(false);
@@ -166,7 +158,6 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white p-5 pb-24">
-      {/* Header */}
       <div className="flex justify-between items-center mb-8 pt-4">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 bg-green-600 rounded-xl flex items-center justify-center text-xl font-bold text-white shadow-[0_0_20px_rgba(34,197,94,0.4)]">LP</div>
@@ -177,12 +168,10 @@ export default function ProfilePage() {
         </div>
         <div className="text-right">
           <p className="text-[10px] text-gray-500 font-bold tracking-widest uppercase mb-1">Signed In</p>
-          {/* Display Name shown here */}
           <p className="text-sm font-bold text-white">{displayName || userPhone}</p>
         </div>
       </div>
 
-      {/* Balance Card */}
       <div className="bg-gradient-to-br from-gray-800 to-gray-900 border border-gray-700/50 rounded-3xl p-6 mb-6 shadow-2xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/10 blur-3xl rounded-full"></div>
         <p className="text-xs text-gray-400 font-bold tracking-widest uppercase mb-2">Total Balance</p>
@@ -196,7 +185,6 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* Menu Options */}
       <div className="space-y-3">
         <Link href="/dashboard/history" className="w-full flex items-center justify-between bg-[#121212] border border-gray-800 p-4 rounded-2xl hover:bg-gray-800 transition group">
           <div className="flex items-center gap-4">
@@ -230,12 +218,10 @@ export default function ProfilePage() {
         </a>
       </div>
 
-      {/* Logout */}
       <button onClick={handleLogout} className="w-full mt-8 flex items-center justify-center gap-3 bg-red-950/30 border border-red-900/50 p-4 rounded-2xl hover:bg-red-900/40 transition">
         <span className="font-bold text-red-400 tracking-widest uppercase text-sm">Log Out</span>
       </button>
 
-      {/* --- BIND ACCOUNT MODAL --- */}
       {isBindOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#121212] border border-gray-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl">
@@ -254,7 +240,6 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* --- DEPOSIT MODAL --- */}
       {isDepositOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#121212] border border-gray-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl">
@@ -264,7 +249,7 @@ export default function ProfilePage() {
             </div>
             {message.text && <div className={`text-center p-3 mb-4 rounded-xl text-sm font-medium border ${message.isError ? 'bg-red-900/40 text-red-200 border-red-700/50' : 'bg-green-900/40 text-green-200 border-green-700/50'}`}>{message.text}</div>}
             <label className="block text-[10px] font-bold tracking-widest text-gray-400 uppercase mb-1">Amount (UGX)</label>
-            <input type="number" placeholder="Minimum 5,000" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} className="w-full px-4 py-3 bg-black/50 border border-gray-700 rounded-xl text-white font-bold text-lg mb-4" />
+            <input type="number" placeholder="Minimum 500" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} className="w-full px-4 py-3 bg-black/50 border border-gray-700 rounded-xl text-white font-bold text-lg mb-4" />
             <label className="block text-[10px] font-bold tracking-widest text-gray-400 uppercase mb-1">Phone Number to Pay From</label>
             <input type="tel" placeholder="e.g. 0700123456" value={depositPhone} onChange={(e) => setDepositPhone(e.target.value)} className="w-full px-4 py-3 bg-black/50 border border-gray-700 rounded-xl text-white font-bold text-lg mb-6" />
             <button onClick={handleDepositSubmit} disabled={isProcessing} className="w-full font-bold py-4 rounded-xl text-white bg-green-600 hover:bg-green-500">{isProcessing ? 'Processing...' : 'Confirm Deposit'}</button>
@@ -272,7 +257,6 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* --- WITHDRAW MODAL --- */}
       {isWithdrawOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#121212] border border-gray-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl">
@@ -307,4 +291,4 @@ export default function ProfilePage() {
       )}
     </div>
   );
-    }
+  }
