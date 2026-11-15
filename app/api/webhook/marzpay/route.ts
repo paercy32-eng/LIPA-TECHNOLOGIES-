@@ -1,29 +1,28 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-// We must use the SERVICE ROLE key here because this runs in the background without a logged-in user
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-// Note: For now, we use the anon key. If RLS blocks it, we will need the Service Role key later.
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""; 
-const supabase = createClient(supabaseUrl, supabaseKey);
+// We MUST use the Service Role key here to bypass Row Level Security
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ""; 
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
+    console.log("Webhook received:", body.event_type);
 
     // 1. Check if the payment was successful
     if (body.event_type !== "collection.completed") {
-      return NextResponse.json({ received: true }); // Ignore failed payments
+      return NextResponse.json({ received: true }); // Ignore failed/pending
     }
 
     const reference = body.transaction.reference;
     const amount = body.transaction.amount.raw;
-    const status = body.transaction.status;
 
     // 2. Find the PENDING transaction in our database
     const { data: transaction, error: txError } = await supabase
       .from("transactions")
-      .select("*, balances(user_id)")
+      .select("*")
       .eq("id", reference)
       .single();
 
@@ -44,17 +43,27 @@ export async function POST(req: Request) {
       .eq("id", reference);
 
     // 5. Fetch current balance and add the deposit
-    const currentBalance = transaction.balances?.[0]?.available || 0;
+    const { data: balanceData } = await supabase
+      .from("balances")
+      .select("available")
+      .eq("user_id", transaction.user_id)
+      .single();
+
+    const currentBalance = balanceData?.available || 0;
     const newBalance = Number(currentBalance) + Number(amount);
 
-    await supabase
+    // 6. Credit the user's balance
+    const { error: balError } = await supabase
       .from("balances")
       .update({ available: newBalance })
       .eq("user_id", transaction.user_id);
 
-    console.log(`✅ Credited ${amount} UGX to user ${transaction.user_id}`);
+    if (balError) {
+      console.error("Failed to update balance:", balError);
+      return NextResponse.json({ error: "Balance update failed" }, { status: 500 });
+    }
 
-    // 6. Return 200 OK to MarzPay
+    console.log(`✅ Credited ${amount} UGX to user ${transaction.user_id}. New balance: ${newBalance}`);
     return NextResponse.json({ received: true });
 
   } catch (error: any) {
