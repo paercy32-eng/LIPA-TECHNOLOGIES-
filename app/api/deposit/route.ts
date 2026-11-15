@@ -11,8 +11,8 @@ export async function POST(req: Request) {
     const { amount, phone, userId } = await req.json();
 
     // 1. Validation
-    if (!amount || amount < 5000) {
-      return NextResponse.json({ error: "Minimum deposit is 5000 UGX" }, { status: 400 });
+    if (!amount || amount < 500) {
+      return NextResponse.json({ error: "Minimum deposit is 500 UGX" }, { status: 400 });
     }
     if (!userId) {
       return NextResponse.json({ error: "User not authenticated" }, { status: 401 });
