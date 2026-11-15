@@ -7,9 +7,8 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// All 35 Products mapped for the Income Page
+// All 35 Products mapped
 const productInfo: Record<string, any> = {
-  // LOCK PLANS (1-15)
   "p1": { name: "LipaVault", category: "LOCK", cycleDays: 3, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400&auto=format&fit=crop" },
   "p2": { name: "LipaCore", category: "LOCK", cycleDays: 3, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400&auto=format&fit=crop" },
   "p3": { name: "LipaShield", category: "LOCK", cycleDays: 2, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400&auto=format&fit=crop" },
@@ -25,8 +24,6 @@ const productInfo: Record<string, any> = {
   "p13": { name: "LipaGateway", category: "LOCK", cycleDays: 2, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400&auto=format&fit=crop" },
   "p14": { name: "LipaX", category: "LOCK", cycleDays: 2, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400&auto=format&fit=crop" },
   "p15": { name: "LipaDashboard", category: "LOCK", cycleDays: 2, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400&auto=format&fit=crop" },
-
-  // DAILY PAYOUTS (16-25)
   "p16": { name: "LipaFlow", category: "DAILY_PAYOUT", cycleDays: 5, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400&auto=format&fit=crop" },
   "p17": { name: "LipaPulse", category: "DAILY_PAYOUT", cycleDays: 3, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400&auto=format&fit=crop" },
   "p18": { name: "LipaRewards", category: "DAILY_PAYOUT", cycleDays: 10, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400&auto=format&fit=crop" },
@@ -37,8 +34,6 @@ const productInfo: Record<string, any> = {
   "p23": { name: "LipaInvoice", category: "DAILY_PAYOUT", cycleDays: 13, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400&auto=format&fit=crop" },
   "p24": { name: "LipaInsights", category: "DAILY_PAYOUT", cycleDays: 10, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400&auto=format&fit=crop" },
   "p25": { name: "LipaVirtual", category: "DAILY_PAYOUT", cycleDays: 8, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400&auto=format&fit=crop" },
-
-  // 24HR UNLOCK (26-35)
   "p26": { name: "LipaTap", category: "UNLOCK_24H", cycleDays: 4, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400&auto=format&fit=crop" },
   "p27": { name: "LipaScan", category: "UNLOCK_24H", cycleDays: 4, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400&auto=format&fit=crop" },
   "p28": { name: "LipaGo", category: "UNLOCK_24H", cycleDays: 4, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400&auto=format&fit=crop" },
@@ -60,45 +55,38 @@ export default function IncomePage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data, error } = await supabase
-        .from("investments")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
+      const { data } = await supabase.from("investments").select("*").eq("user_id", user.id).order("created_at", { ascending: false });
 
       if (data) {
         const processedData = data.map(inv => {
-          // Match the investment to our product dictionary
-          const info = productInfo[inv.product_id] || { name: "Unknown Product", category: "LOCK", cycleDays: 3, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400" };
+          const info = productInfo[inv.product_id] || { name: "Unknown", category: "LOCK", cycleDays: 3, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400" };
           
-          const start = new Date(inv.created_at);
-          const now = new Date();
-          const hoursElapsed = (now.getTime() - start.getTime()) / (1000 * 60 * 60);
+          const hoursElapsed = (new Date().getTime() - new Date(inv.created_at).getTime()) / (1000 * 60 * 60);
 
           let statusText = "";
-          let statusColor = "text-gray-500";
+          let statusColor = "text-gray-400";
           let timeText = "";
 
           if (info.category === "LOCK") {
             const days = Math.floor(hoursElapsed / 24);
             statusText = "Days Active";
             timeText = `${days} / ${info.cycleDays} Days`;
-            statusColor = "text-blue-600";
+            statusColor = "text-[#00D2FF]";
           } else if (info.category === "DAILY_PAYOUT") {
             const nextPayout = 24 - (hoursElapsed % 24);
             statusText = "Next Payout";
             timeText = `in ${Math.floor(nextPayout)} hrs`;
-            statusColor = "text-green-600";
+            statusColor = "text-green-400";
           } else if (info.category === "UNLOCK_24H") {
             if (hoursElapsed < 24) {
               statusText = "Locked";
               timeText = `Unlocks in ${Math.floor(24 - hoursElapsed)} hrs`;
-              statusColor = "text-red-500";
+              statusColor = "text-red-400";
             } else {
               const nextPayout = 24 - (hoursElapsed % 24);
               statusText = "Next Payout";
               timeText = `in ${Math.floor(nextPayout)} hrs`;
-              statusColor = "text-green-600";
+              statusColor = "text-green-400";
             }
           }
 
@@ -112,43 +100,43 @@ export default function IncomePage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-gray-900 p-5 pb-24">
+    <div className="min-h-screen bg-[#0B0C10] text-white p-5 pb-24">
       <div className="mb-8 pt-4">
-        <h1 className="text-2xl font-black text-gray-900 tracking-tight">My Income</h1>
-        <p className="text-gray-500 text-sm mt-1">Track your active investments</p>
+        <h1 className="text-2xl font-black text-white tracking-tight">My Income</h1>
+        <p className="text-gray-400 text-sm mt-1">Track your active investments</p>
       </div>
 
       {isLoading ? (
         <div className="text-center text-gray-500 mt-10">Loading your portfolio...</div>
       ) : investments.length === 0 ? (
-        <div className="flex flex-col items-center justify-center mt-20 text-center bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
-          <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-4 text-blue-500">
+        <div className="flex flex-col items-center justify-center mt-20 text-center bg-[#12141D] p-8 rounded-3xl border border-gray-800">
+          <div className="w-20 h-20 bg-[#7B61FF]/10 rounded-full flex items-center justify-center mb-4 text-[#7B61FF]">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
           </div>
-          <p className="text-gray-800 font-bold">No active investments</p>
+          <p className="text-white font-bold">No active investments</p>
           <p className="text-gray-500 text-sm mt-1">Go to Home and buy a product to start earning.</p>
         </div>
       ) : (
         <div className="space-y-4">
           {investments.map((inv) => (
-            <div key={inv.id} className="bg-white border border-gray-100 rounded-3xl p-4 shadow-[0_8px_30px_rgba(0,0,0,0.04)] relative overflow-hidden flex flex-col">
+            <div key={inv.id} className="bg-[#12141D] border border-gray-800 rounded-3xl p-4 shadow-lg relative overflow-hidden flex flex-col">
               <div className="flex gap-4 mb-4">
-                <img src={inv.img} alt={inv.name} className="w-16 h-16 rounded-2xl object-cover border border-gray-100" />
+                <img src={inv.img} alt={inv.name} className="w-16 h-16 rounded-2xl object-cover border border-gray-700" />
                 <div>
-                  <h3 className="text-lg font-extrabold text-gray-900 leading-tight">{inv.name}</h3>
-                  <span className="text-[10px] bg-green-100 text-green-700 font-bold px-2 py-0.5 rounded-md uppercase tracking-wider mt-1 inline-block">Active</span>
-                  <p className="text-sm font-black text-blue-600 mt-1">UGX {Number(inv.amount).toLocaleString()}</p>
+                  <h3 className="text-lg font-extrabold text-white leading-tight">{inv.name}</h3>
+                  <span className="text-[10px] bg-[#7B61FF]/20 text-[#7B61FF] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider mt-1 inline-block">Active</span>
+                  <p className="text-sm font-black text-[#00D2FF] mt-1">UGX {Number(inv.amount).toLocaleString()}</p>
                 </div>
               </div>
 
-              <div className="bg-gray-50 rounded-2xl p-3 flex justify-between border border-gray-100">
+              <div className="bg-[#0B0C10] rounded-2xl p-3 flex justify-between border border-gray-800">
                 <div>
                   <p className="text-[10px] text-gray-500 font-bold uppercase mb-1">{inv.statusText}</p>
                   <p className={`text-sm font-black ${inv.statusColor}`}>{inv.timeText}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-[10px] text-gray-500 font-bold uppercase mb-1">Expected Return</p>
-                  <p className="text-sm font-black text-gray-900">{Number(inv.expected_return).toLocaleString()} UGX</p>
+                  <p className="text-sm font-black text-white">{Number(inv.expected_return).toLocaleString()} UGX</p>
                 </div>
               </div>
             </div>
@@ -157,4 +145,4 @@ export default function IncomePage() {
       )}
     </div>
   );
-}
+                                                                         }
