@@ -21,14 +21,13 @@ export default function HomePage() {
     { id: "UNLOCK_24H", label: "24Hr Unlock" },
   ];
 
-  // Unique images for different categories
   const images = {
     LOCK: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400&auto=format&fit=crop",
     DAILY_PAYOUT: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400&auto=format&fit=crop",
     UNLOCK_24H: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400&auto=format&fit=crop",
   };
 
-  // FULL 35 PRODUCTS
+  // ALL 35 PRODUCTS
   const products = [
     // --- LOCK PLANS (15) ---
     { id: "p1", name: "LipaVault", category: "LOCK", price: 10000, daily: "0", cycle: "3d", total: 25000 },
@@ -92,18 +91,41 @@ export default function HomePage() {
     if (purchasedIds.includes(product.id)) return;
 
     if (balance < product.price) {
-      return alert(`Insufficient balance. You need UGX ${product.price.toLocaleString()} to buy this.`);
+      return alert(`Insufficient balance. You need UGX ${product.price.toLocaleString()}.`);
     }
 
     setIsProcessing(true);
 
     try {
-      // 1. Deduct Balance
+      // 1. FIRST PURCHASE RULE: Check if this is their first investment
+      const { count: invCount } = await supabase
+        .from("investments")
+        .select("*", { count: 'exact', head: true })
+        .eq("user_id", userId);
+
+      if (invCount === 0) {
+        // It's their first purchase. They must have approved deposits to cover it.
+        const { data: deposits } = await supabase
+          .from("transactions")
+          .select("amount")
+          .eq("user_id", userId)
+          .eq("type", "DEPOSIT")
+          .eq("status", "COMPLETED");
+
+        const totalDeposited = deposits?.reduce((sum, tx) => sum + Number(tx.amount), 0) || 0;
+
+        if (totalDeposited < product.price) {
+          setIsProcessing(false);
+          return alert(`First Purchase Rule: Your first purchase must be fully funded by approved deposits. You have deposited UGX ${totalDeposited.toLocaleString()}. You need UGX ${product.price.toLocaleString()}. (Welcome bonus and commissions cannot be used for the first purchase).`);
+        }
+      }
+
+      // 2. Deduct Balance
       const newBalance = balance - product.price;
       const { error: balError } = await supabase.from("balances").update({ available: newBalance }).eq("user_id", userId);
       if (balError) throw balError;
 
-      // 2. Create Investment Record
+      // 3. Create Investment Record
       const { error: invError } = await supabase.from("investments").insert({
         user_id: userId,
         product_id: product.id,
@@ -113,7 +135,7 @@ export default function HomePage() {
       });
       if (invError) throw invError;
 
-      // 3. Update UI
+      // 4. Update UI
       setBalance(newBalance);
       setPurchasedIds([...purchasedIds, product.id]);
       alert(`Successfully purchased ${product.name}! Check your Income tab.`);
@@ -154,7 +176,6 @@ export default function HomePage() {
       <div className="p-4 grid grid-cols-2 gap-4">
         {filteredProducts.map((product, index) => {
           const isPurchased = purchasedIds.includes(product.id);
-          // Cycle through 3 images based on index to make them look varied
           const imgUrl = index % 3 === 0 
             ? "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400&auto=format&fit=crop" 
             : index % 3 === 1 
@@ -219,4 +240,4 @@ export default function HomePage() {
       </div>
     </div>
   );
-    }
+     }
