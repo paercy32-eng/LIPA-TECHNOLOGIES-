@@ -15,7 +15,7 @@ export default function HomePage() {
   const [isProcessing, setIsProcessing] = useState(false);
 
   const tabs = [
-    { id: "ALL", label: "All" },
+    { id: "ALL", label: "All Products" },
     { id: "LOCK", label: "Lock Plans" },
     { id: "DAILY_PAYOUT", label: "Daily Payouts" },
     { id: "UNLOCK_24H", label: "24Hr Unlock" },
@@ -27,9 +27,9 @@ export default function HomePage() {
     UNLOCK_24H: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400&auto=format&fit=crop",
   };
 
-  // ALL 35 PRODUCTS
+  // --- ALL 35 PRODUCTS ---
   const products = [
-    // --- LOCK PLANS (15) ---
+    // LOCK PLANS (15)
     { id: "p1", name: "LipaVault", category: "LOCK", price: 10000, daily: "0", cycle: "3d", total: 25000 },
     { id: "p2", name: "LipaCore", category: "LOCK", price: 5000, daily: "0", cycle: "3d", total: 13000 },
     { id: "p3", name: "LipaShield", category: "LOCK", price: 50000, daily: "0", cycle: "2d", total: 75000 },
@@ -46,7 +46,7 @@ export default function HomePage() {
     { id: "p14", name: "LipaX", category: "LOCK", price: 1000000, daily: "0", cycle: "2d", total: 3000000 },
     { id: "p15", name: "LipaDashboard", category: "LOCK", price: 2000000, daily: "0", cycle: "2d", total: 4500000 },
 
-    // --- DAILY PAYOUTS (10) ---
+    // DAILY PAYOUTS (10)
     { id: "p16", name: "LipaFlow", category: "DAILY_PAYOUT", price: 5000, daily: "2,000", cycle: "5d", total: 10000 },
     { id: "p17", name: "LipaPulse", category: "DAILY_PAYOUT", price: 10000, daily: "5,000", cycle: "3d", total: 15000 },
     { id: "p18", name: "LipaRewards", category: "DAILY_PAYOUT", price: 25000, daily: "5,000", cycle: "10d", total: 50000 },
@@ -58,7 +58,7 @@ export default function HomePage() {
     { id: "p24", name: "LipaInsights", category: "DAILY_PAYOUT", price: 1000000, daily: "300,000", cycle: "10d", total: 3000000 },
     { id: "p25", name: "LipaVirtual", category: "DAILY_PAYOUT", price: 2000000, daily: "700,000", cycle: "8d", total: 5600000 },
 
-    // --- 24HR UNLOCK (10) ---
+    // 24HR UNLOCK (10)
     { id: "p26", name: "LipaTap", category: "UNLOCK_24H", price: 5000, daily: "2,500", cycle: "4d", total: 10000 },
     { id: "p27", name: "LipaScan", category: "UNLOCK_24H", price: 10000, daily: "4,500", cycle: "4d", total: 18000 },
     { id: "p28", name: "LipaGo", category: "UNLOCK_24H", price: 25000, daily: "10,000", cycle: "4d", total: 40000 },
@@ -97,14 +97,13 @@ export default function HomePage() {
     setIsProcessing(true);
 
     try {
-      // 1. FIRST PURCHASE RULE: Check if this is their first investment
+      // 1. FIRST PURCHASE RULE
       const { count: invCount } = await supabase
         .from("investments")
         .select("*", { count: 'exact', head: true })
         .eq("user_id", userId);
 
       if (invCount === 0) {
-        // It's their first purchase. They must have approved deposits to cover it.
         const { data: deposits } = await supabase
           .from("transactions")
           .select("amount")
@@ -150,22 +149,30 @@ export default function HomePage() {
   const filteredProducts = activeTab === "ALL" ? products : products.filter(p => p.category === activeTab);
 
   return (
-    <div className="min-h-screen bg-black text-white pb-24">
-      <div className="p-5 pt-8 flex justify-between items-center">
-        <h1 className="text-3xl font-extrabold text-[#00d2ff] tracking-tight">LIPA</h1>
-        <div className="text-right">
-          <p className="text-[10px] text-gray-400 font-bold uppercase">Balance</p>
-          <p className="text-sm font-bold text-green-400">UGX {balance.toLocaleString()}</p>
+    <div className="min-h-screen bg-[#f8fafc] text-gray-900 pb-24">
+      
+      {/* Bright Header */}
+      <div className="bg-white p-5 pt-8 shadow-sm rounded-b-3xl flex justify-between items-center sticky top-0 z-20">
+        <div>
+          <h1 className="text-2xl font-black text-gray-900 tracking-tight">Explore</h1>
+          <p className="text-xs text-gray-500 font-medium mt-1">Find your next investment</p>
+        </div>
+        <div className="bg-blue-50 px-4 py-2 rounded-2xl border border-blue-100 text-right">
+          <p className="text-[10px] text-blue-500 font-bold uppercase tracking-wider">Balance</p>
+          <p className="text-sm font-black text-blue-700">UGX {balance.toLocaleString()}</p>
         </div>
       </div>
 
-      <div className="flex space-x-6 px-5 border-b border-gray-800 overflow-x-auto no-scrollbar">
+      {/* Category Pills */}
+      <div className="flex space-x-3 px-5 py-6 overflow-x-auto no-scrollbar">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`pb-3 whitespace-nowrap font-medium text-sm transition-colors border-b-2 ${
-              activeTab === tab.id ? "text-[#00d2ff] border-[#00d2ff]" : "text-gray-500 border-transparent hover:text-gray-300"
+            className={`px-5 py-2.5 whitespace-nowrap rounded-full font-bold text-xs transition-all ${
+              activeTab === tab.id 
+                ? "bg-blue-600 text-white shadow-[0_5px_15px_rgba(37,99,235,0.3)] scale-105" 
+                : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"
             }`}
           >
             {tab.label}
@@ -173,19 +180,21 @@ export default function HomePage() {
         ))}
       </div>
 
-      <div className="p-4 grid grid-cols-2 gap-4">
+      {/* Product Grid */}
+      <div className="px-5 grid grid-cols-2 gap-4">
         {filteredProducts.map((product, index) => {
           const isPurchased = purchasedIds.includes(product.id);
           const imgUrl = index % 3 === 0 
-            ? "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400&auto=format&fit=crop" 
+            ? images.LOCK 
             : index % 3 === 1 
-            ? "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400&auto=format&fit=crop"
-            : "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400&auto=format&fit=crop";
+            ? images.DAILY_PAYOUT
+            : images.UNLOCK_24H;
 
           let btnText = "";
-          let btnClass = "bg-[#00d2ff] hover:bg-cyan-400 text-black shadow-[0_0_10px_rgba(0,210,255,0.3)]";
+          let btnClass = "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md";
+          
           if (isPurchased) {
-            btnClass = "bg-gray-800 text-gray-400 cursor-not-allowed border border-gray-700";
+            btnClass = "bg-gray-100 text-gray-400 cursor-not-allowed";
             if (product.category === "LOCK") btnText = "Locked In";
             else if (product.category === "DAILY_PAYOUT") btnText = "Purchased";
             else if (product.category === "UNLOCK_24H") btnText = "Unlocked";
@@ -196,40 +205,46 @@ export default function HomePage() {
           }
 
           return (
-            <div key={product.id} className="bg-[#051105] border border-green-500/40 rounded-2xl flex flex-col justify-between overflow-hidden shadow-lg">
-              <div className="w-full h-28 relative">
-                <img src={imgUrl} alt={product.name} className="w-full h-full object-cover opacity-60" />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#051105] to-transparent"></div>
+            <div key={product.id} className="bg-white rounded-3xl p-3 shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-gray-100 flex flex-col justify-between">
+              
+              <div>
+                {/* Image */}
+                <div className="w-full h-24 rounded-2xl overflow-hidden mb-3 relative bg-gray-100">
+                  <img src={imgUrl} alt={product.name} className="w-full h-full object-cover" />
+                  <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm px-2 py-0.5 rounded-md text-[9px] font-bold text-gray-800 shadow-sm uppercase">
+                    {product.category.replace('_', ' ')}
+                  </div>
+                </div>
+
+                {/* Title & Price */}
+                <h3 className="text-gray-900 font-extrabold text-[15px] leading-tight mb-1 truncate">{product.name}</h3>
+                <div className="flex items-baseline gap-1 mb-3">
+                  <span className="text-xs font-bold text-gray-400">UGX</span>
+                  <span className="text-xl font-black text-gray-900">{product.price.toLocaleString()}</span>
+                </div>
               </div>
 
-              <div className="p-3 pt-0">
-                <h3 className="text-[#00d2ff] font-bold text-lg leading-tight truncate">{product.name}</h3>
-                <p className="text-gray-400 text-[10px] uppercase tracking-wider mb-2 mt-0.5">{product.category.replace('_', ' ')}</p>
-
-                <p className="text-gray-500 text-[10px] font-bold tracking-wider mb-0.5">PRICE</p>
-                <p className="text-white text-xl font-bold mb-3">
-                  {product.price.toLocaleString()} <span className="text-xs font-medium text-gray-400">UGX</span>
-                </p>
-
-                <div className="bg-black/60 rounded-xl p-2 mb-3 flex justify-between text-center border border-gray-800">
-                  <div className="flex-1 border-r border-gray-800">
-                    <p className="text-gray-500 text-[9px] font-bold">DAILY</p>
-                    <p className="text-[#00d2ff] text-[11px] font-bold">{product.daily}</p>
+              {/* Stats Box */}
+              <div>
+                <div className="bg-gray-50 rounded-xl p-2.5 mb-3 grid grid-cols-3 gap-1 divide-x divide-gray-200">
+                  <div className="text-center">
+                    <p className="text-[9px] text-gray-400 font-bold uppercase">Daily</p>
+                    <p className="text-[11px] font-bold text-blue-600">{product.daily}</p>
                   </div>
-                  <div className="flex-1 border-r border-gray-800">
-                    <p className="text-gray-500 text-[9px] font-bold">CYCLE</p>
-                    <p className="text-[#00d2ff] text-[11px] font-bold">{product.cycle}</p>
+                  <div className="text-center">
+                    <p className="text-[9px] text-gray-400 font-bold uppercase">Cycle</p>
+                    <p className="text-[11px] font-bold text-gray-700">{product.cycle}</p>
                   </div>
-                  <div className="flex-1">
-                    <p className="text-gray-500 text-[9px] font-bold">TOTAL</p>
-                    <p className="text-[#00d2ff] text-[11px] font-bold">{product.total.toLocaleString()}</p>
+                  <div className="text-center">
+                    <p className="text-[9px] text-gray-400 font-bold uppercase">Total</p>
+                    <p className="text-[11px] font-bold text-green-600">{product.total.toLocaleString()}</p>
                   </div>
                 </div>
 
                 <button 
                   onClick={() => handlePurchase(product)}
                   disabled={isPurchased || isProcessing}
-                  className={`w-full font-extrabold py-2.5 rounded-xl text-sm transition-all ${btnClass}`}
+                  className={`w-full font-bold py-2.5 rounded-xl text-xs transition-all ${btnClass}`}
                 >
                   {isProcessing ? "Wait..." : btnText}
                 </button>
@@ -240,4 +255,4 @@ export default function HomePage() {
       </div>
     </div>
   );
-     }
+    }
