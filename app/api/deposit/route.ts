@@ -11,8 +11,8 @@ export async function POST(req: Request) {
     const { amount, phone, userId } = await req.json();
 
     // 1. Validation
-    if (!amount || amount < 500) {
-      return NextResponse.json({ error: "Minimum deposit is 500 UGX" }, { status: 400 });
+    if (!amount || amount < 5000) {
+      return NextResponse.json({ error: "Minimum deposit is 5000 UGX" }, { status: 400 });
     }
     if (!userId) {
       return NextResponse.json({ error: "User not authenticated" }, { status: 401 });
@@ -30,7 +30,10 @@ export async function POST(req: Request) {
     // 3. Setup MarzPay Request
     const reference = randomUUID();
     const authString = Buffer.from(`${process.env.MARZPAY_PUBLIC_KEY}:${process.env.MARZPAY_SECRET_KEY}`).toString("base64");
-    const callbackUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/api/webhook/marzpay`;
+    
+    // Dynamically get the current website URL to use for the callback
+    const requestUrl = new URL(req.url);
+    const callbackUrl = `${requestUrl.origin}/api/webhook/marzpay`;
 
     const marzPayload = new FormData();
     marzPayload.append("amount", amount.toString());
@@ -40,14 +43,14 @@ export async function POST(req: Request) {
     marzPayload.append("description", "LIPA Wallet Deposit");
     marzPayload.append("callback_url", callbackUrl);
 
-    // --- LOGGING ---
+    // Logging to verify the URL is correct
     console.log("Sending to MarzPay:", { 
       amount: amount.toString(), 
       phone: formattedPhone, 
       callback: callbackUrl 
     });
 
-    // 4. Send Request
+    // 4. Send Request to MarzPay
     const response = await fetch("https://wallet.wearemarz.com/api/v1/collect-money", {
       method: "POST",
       headers: { "Authorization": `Basic ${authString}` },
@@ -56,14 +59,14 @@ export async function POST(req: Request) {
 
     const data = await response.json();
 
-    // --- LOGGING ---
+    // Logging the response from MarzPay
     console.log("MarzPay Response:", data);
 
     if (!response.ok) {
       return NextResponse.json({ error: data.message || "MarzPay error" }, { status: 400 });
     }
 
-    // 5. Save PENDING transaction
+    // 5. Save PENDING transaction in Supabase
     const { error: dbError } = await supabase.from("transactions").insert({
       id: reference, 
       user_id: userId, 
