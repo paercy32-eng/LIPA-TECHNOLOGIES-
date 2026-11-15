@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
@@ -8,6 +9,7 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 export default function HistoryPage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState("DEPOSITS");
   const [transactions, setTransactions] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -15,7 +17,7 @@ export default function HistoryPage() {
   useEffect(() => {
     const fetchHistory = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) return router.push("/auth"); // CHANGED TO /auth
 
       const { data } = await supabase
         .from("transactions")
@@ -27,7 +29,7 @@ export default function HistoryPage() {
       setIsLoading(false);
     };
     fetchHistory();
-  }, []);
+  }, [router]);
 
   const deposits = transactions.filter(t => t.type === "DEPOSIT");
   const withdrawals = transactions.filter(t => t.type === "WITHDRAWAL");
@@ -39,7 +41,6 @@ export default function HistoryPage() {
     return commissions;
   };
 
-  // Helper to format status
   const getStatusDisplay = (status: string, type: string) => {
     if (status === "PENDING") return { text: "Pending", color: "text-yellow-400 bg-yellow-400/10 border-yellow-400/20" };
     if (status === "FAILED") return { text: "Failed", color: "text-red-400 bg-red-400/10 border-red-400/20" };
@@ -57,7 +58,6 @@ export default function HistoryPage() {
         <h1 className="text-2xl font-extrabold text-white tracking-tight">Transaction History</h1>
       </div>
 
-      {/* Tabs */}
       <div className="flex space-x-2 mb-6 overflow-x-auto">
         {["DEPOSITS", "WITHDRAWALS", "COMMISSIONS"].map((tab) => (
           <button
@@ -101,4 +101,4 @@ export default function HistoryPage() {
       )}
     </div>
   );
-    }
+}
