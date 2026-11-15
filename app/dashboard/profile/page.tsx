@@ -18,17 +18,14 @@ export default function ProfilePage() {
   const [boundNumber, setBoundNumber] = useState("");
   const [displayName, setDisplayName] = useState("");
   
-  // Modals State
   const [isDepositOpen, setIsDepositOpen] = useState(false);
   const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
   const [isBindOpen, setIsBindOpen] = useState(false);
   
-  // Form States
   const [depositAmount, setDepositAmount] = useState("");
   const [depositPhone, setDepositPhone] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
   
-  // Bind Form State
   const [bindName, setBindName] = useState("");
   const [bindPhone, setBindPhone] = useState("");
   
@@ -63,13 +60,12 @@ export default function ProfilePage() {
         const { data: bal } = await supabase.from("balances").select("available").eq("user_id", user.id).single();
         if (bal) setBalance(bal.available.toString());
       } else {
-        router.push("/"); 
+        router.push("/auth"); // CHANGED TO /auth
       }
     };
     getUser();
   }, [router]);
 
-  // --- BIND ACCOUNT LOGIC ---
   const handleBindSubmit = async () => {
     if (!bindName || !bindPhone) return setMessage({ text: "Please fill all fields", isError: true });
     if (bindPhone.length < 9) return setMessage({ text: "Invalid phone number", isError: true });
@@ -91,7 +87,6 @@ export default function ProfilePage() {
     }
   };
 
-  // --- DEPOSIT LOGIC ---
   const handleDepositSubmit = async () => {
     const amount = Number(depositAmount);
     if (amount < 500) return setMessage({ text: "Minimum deposit is 500 UGX", isError: true });
@@ -117,7 +112,6 @@ export default function ProfilePage() {
     }
   };
 
-  // --- WITHDRAW LOGIC ---
   const handleWithdrawSubmit = async () => {
     if (!boundNumber) {
       setIsWithdrawOpen(false);
@@ -132,7 +126,6 @@ export default function ProfilePage() {
     setMessage({ text: "", isError: false });
 
     try {
-      // NEW: Check for active product before allowing withdrawal
       const { count: activeInv, error: invError } = await supabase
         .from("investments")
         .select("*", { count: 'exact', head: true })
@@ -146,7 +139,6 @@ export default function ProfilePage() {
         return setMessage({ text: "You must have an active product (purchased or granted) to withdraw.", isError: true });
       }
 
-      // Check time restriction (9 AM to 5 PM EAT)
       const now = new Date();
       const eatTime = new Intl.DateTimeFormat('en-US', { timeZone: 'Africa/Kampala', hour: 'numeric', hour12: false }).format(now);
       const currentHour = parseInt(eatTime);
@@ -155,12 +147,10 @@ export default function ProfilePage() {
         return setMessage({ text: "Withdrawals are only allowed between 9:00 AM and 5:00 PM.", isError: true });
       }
 
-      // Deduct balance
       const newBalance = Number(balance) - amount;
       const { error: balUpdateError } = await supabase.from("balances").update({ available: newBalance }).eq("user_id", userId);
       if (balUpdateError) throw balUpdateError;
 
-      // Create transaction record
       const { error: txError } = await supabase.from("transactions").insert({
         user_id: userId,
         type: "WITHDRAWAL",
@@ -183,12 +173,11 @@ export default function ProfilePage() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    router.push("/"); 
+    router.push("/auth"); // CHANGED TO /auth
   };
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white p-5 pb-24">
-      {/* Header */}
       <div className="flex justify-between items-center mb-8 pt-4">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 bg-green-600 rounded-xl flex items-center justify-center text-xl font-bold text-white shadow-[0_0_20px_rgba(34,197,94,0.4)]">LP</div>
@@ -203,7 +192,6 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* Balance Card */}
       <div className="bg-gradient-to-br from-gray-800 to-gray-900 border border-gray-700/50 rounded-3xl p-6 mb-6 shadow-2xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/10 blur-3xl rounded-full"></div>
         <p className="text-xs text-gray-400 font-bold tracking-widest uppercase mb-2">Total Balance</p>
@@ -217,7 +205,6 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* Menu Options */}
       <div className="space-y-3">
         <Link href="/dashboard/history" className="w-full flex items-center justify-between bg-[#121212] border border-gray-800 p-4 rounded-2xl hover:bg-gray-800 transition group">
           <div className="flex items-center gap-4">
@@ -251,12 +238,12 @@ export default function ProfilePage() {
         </a>
       </div>
 
-      {/* Logout */}
       <button onClick={handleLogout} className="w-full mt-8 flex items-center justify-center gap-3 bg-red-950/30 border border-red-900/50 p-4 rounded-2xl hover:bg-red-900/40 transition">
         <span className="font-bold text-red-400 tracking-widest uppercase text-sm">Log Out</span>
       </button>
 
-      {/* --- BIND ACCOUNT MODAL --- */}
+      {/* --- MODALS OMITTED FOR BREVITY, THEY REMAIN THE SAME AS BEFORE --- */}
+      {/* Bind Account Modal */}
       {isBindOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#121212] border border-gray-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl">
@@ -275,7 +262,7 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* --- DEPOSIT MODAL --- */}
+      {/* Deposit Modal */}
       {isDepositOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#121212] border border-gray-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl">
@@ -293,7 +280,7 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* --- WITHDRAW MODAL --- */}
+      {/* Withdraw Modal */}
       {isWithdrawOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#121212] border border-gray-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl">
@@ -328,4 +315,4 @@ export default function ProfilePage() {
       )}
     </div>
   );
-              }
+          }
