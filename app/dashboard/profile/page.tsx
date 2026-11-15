@@ -91,7 +91,7 @@ export default function ProfilePage() {
     }
   };
 
-  // --- DEPOSIT LOGIC ---
+  // --- DEPOSIT LOGIC (Bulletproof Error Handling) ---
   const handleDepositSubmit = async () => {
     const amount = Number(depositAmount);
     if (amount < 500) return setMessage({ text: "Minimum deposit is 500 UGX", isError: true });
@@ -107,14 +107,20 @@ export default function ProfilePage() {
         body: JSON.stringify({ amount, phone: depositPhone, userId })
       });
       
-      // SAFELY READ TEXT FIRST to prevent "Unexpected end of JSON input" crash
+      // Read as text first to prevent JSON crash
       const responseText = await response.text();
       
       if (!responseText) {
-        throw new Error("Server error: No response from API. Check Vercel logs.");
+        throw new Error(`Server Error (${response.status}): Returned an empty response. Check Vercel logs.`);
       }
 
-      const data = JSON.parse(responseText);
+      // Try to parse JSON
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (e) {
+        throw new Error(`Server Error: Invalid response format. ${responseText.substring(0, 50)}...`);
+      }
 
       if (!response.ok) throw new Error(data.error || "Deposit failed");
 
@@ -276,12 +282,22 @@ export default function ProfilePage() {
               <h3 className="text-xl font-bold text-gray-900">Deposit Funds</h3>
               <button onClick={() => setIsDepositOpen(false)} className="text-gray-400 hover:text-gray-900">✕</button>
             </div>
-            {message.text && <div className={`text-center p-3 mb-4 rounded-xl text-sm font-medium border ${message.isError ? 'bg-red-50 text-red-600 border-red-100' : 'bg-green-50 text-green-600 border-green-100'}`}>{message.text}</div>}
+            
+            {message.text && (
+              <div className={`text-center p-3 mb-4 rounded-xl text-sm font-medium border ${message.isError ? 'bg-red-50 text-red-600 border-red-100' : 'bg-green-50 text-green-600 border-green-100'}`}>
+                {message.text}
+              </div>
+            )}
+
             <label className="block text-[10px] font-bold tracking-widest text-gray-500 uppercase mb-1">Amount (UGX)</label>
             <input type="number" placeholder="Minimum 500" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-bold text-lg mb-4 focus:outline-none focus:border-blue-500" />
+            
             <label className="block text-[10px] font-bold tracking-widest text-gray-500 uppercase mb-1">Phone Number to Pay From</label>
             <input type="tel" placeholder="e.g. 0700123456" value={depositPhone} onChange={(e) => setDepositPhone(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-bold text-lg mb-6 focus:outline-none focus:border-blue-500" />
-            <button onClick={handleDepositSubmit} disabled={isProcessing} className="w-full font-bold py-4 rounded-xl text-white bg-green-600 hover:bg-green-700">{isProcessing ? 'Processing...' : 'Confirm Deposit'}</button>
+            
+            <button onClick={handleDepositSubmit} disabled={isProcessing} className="w-full font-bold py-4 rounded-xl text-white bg-green-600 hover:bg-green-700">
+              {isProcessing ? 'Processing...' : 'Confirm Deposit'}
+            </button>
           </div>
         </div>
       )}
@@ -295,7 +311,11 @@ export default function ProfilePage() {
               <button onClick={() => setIsWithdrawOpen(false)} className="text-gray-400 hover:text-gray-900">✕</button>
             </div>
             
-            {message.text && <div className={`text-center p-3 mb-4 rounded-xl text-sm font-medium border ${message.isError ? 'bg-red-50 text-red-600 border-red-100' : 'bg-green-50 text-green-600 border-green-100'}`}>{message.text}</div>}
+            {message.text && (
+              <div className={`text-center p-3 mb-4 rounded-xl text-sm font-medium border ${message.isError ? 'bg-red-50 text-red-600 border-red-100' : 'bg-green-50 text-green-600 border-green-100'}`}>
+                {message.text}
+              </div>
+            )}
 
             {!boundNumber ? (
               <div className="text-center py-6">
@@ -313,7 +333,9 @@ export default function ProfilePage() {
                   <p className="text-xs text-gray-500">Available: UGX {Number(balance).toLocaleString()}</p>
                   {withdrawAmount && <p className="text-xs text-green-600 font-bold">You Receive: UGX {(Number(withdrawAmount) * 0.87).toLocaleString()}</p>}
                 </div>
-                <button onClick={handleWithdrawSubmit} disabled={isProcessing} className="w-full font-bold py-4 rounded-xl text-white bg-blue-600 hover:bg-blue-700">{isProcessing ? 'Processing...' : 'Request Withdrawal'}</button>
+                <button onClick={handleWithdrawSubmit} disabled={isProcessing} className="w-full font-bold py-4 rounded-xl text-white bg-blue-600 hover:bg-blue-700">
+                  {isProcessing ? 'Processing...' : 'Request Withdrawal'}
+                </button>
               </>
             )}
           </div>
@@ -321,4 +343,4 @@ export default function ProfilePage() {
       )}
     </div>
   );
-            }
+      }
