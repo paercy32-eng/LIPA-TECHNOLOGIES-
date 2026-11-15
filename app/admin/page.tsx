@@ -22,7 +22,7 @@ export default function AdminPanel() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         setIsLoading(false);
-        return; // Stop loading, show Access Denied (not logged in)
+        return;
       }
 
       const { data: profile } = await supabase.from("profiles").select("is_admin").eq("id", user.id).single();
@@ -38,9 +38,11 @@ export default function AdminPanel() {
   }, []);
 
   const fetchAllData = async () => {
+    // 1. Fetch Users
     const { data: profiles } = await supabase.from("profiles").select("*, balances(available)").order("created_at", { ascending: false });
     if (profiles) setUsers(profiles);
 
+    // 2. Fetch Pending Withdrawals
     const { data: txs } = await supabase
       .from("transactions")
       .select("*, profiles(phone, full_name, bound_number)")
@@ -49,6 +51,7 @@ export default function AdminPanel() {
       .order("created_at", { ascending: false });
     if (txs) setWithdrawals(txs);
 
+    // 3. Fetch Stats
     const { count: userCount } = await supabase.from("profiles").select("*", { count: 'exact', head: true });
     const { data: deposits } = await supabase.from("transactions").select("amount").eq("type", "DEPOSIT").eq("status", "COMPLETED");
     const { data: investments } = await supabase.from("investments").select("amount").eq("status", "ACTIVE");
@@ -58,6 +61,56 @@ export default function AdminPanel() {
       totalDeposited: deposits?.reduce((acc, curr) => acc + Number(curr.amount), 0) || 0,
       totalInvested: investments?.reduce((acc, curr) => acc + Number(curr.amount), 0) || 0
     });
+  };
+
+  // --- ACTION FUNCTIONS ---
+
+  const handleAdjustBalance = async (userId: string, currentBalance: number) => {
+    const newBalance = prompt("Enter new balance (UGX):", currentBalance.toString());
+    if (newBalance === null) return;
+
+    const { error } = await supabase.from("balances").update({ available: Number(newBalance) }).eq("user_id", userId);
+    if (error) alert("Error: " + error.message);
+    else {
+      alert("Balance updated successfully!");
+      fetchAllData();
+    }
+  };
+
+  const handleGrantProduct = async (userId: string) => {
+    const productId = prompt("Enter Product ID to grant (e.g., p1, p16, p26):");
+    if (!productId) return;
+
+    const expectedReturn = prompt("Enter Expected Return Amount (UGX):");
+    if (!expectedReturn) return;
+
+    // Insert into investments table. Amount is 0 because we are granting it.
+    const { error } = await supabase.from("investments").insert({
+      user_id: userId,
+      product_id: productId.toLowerCase(),
+      amount: 0, // Admin granted
+      expected_return: Number(expectedReturn),
+      status: "ACTIVE",
+    });
+
+    if (error) alert("Error granting product: " + error.message);
+    else {
+      alert("Product granted successfully! It will now appear on their Income page.");
+      fetchAllData();
+    }
+  };
+
+  const handleBanUser = async (userId: string, currentStatus: string) => {
+    const newStatus = currentStatus === "BANNED" ? "ACTIVE" : "BANNED";
+    const confirmAction = confirm(`Are you sure you want to change status to ${newStatus}?`);
+    if (!confirmAction) return;
+
+    const { error } = await supabase.from("profiles").update({ status: newStatus }).eq("id", userId);
+    if (error) alert("Error updating status: " + error.message);
+    else {
+      alert(`User is now ${newStatus}`);
+      fetchAllData();
+    }
   };
 
   const handleApproveWithdrawal = async (txId: string) => {
@@ -79,17 +132,16 @@ export default function AdminPanel() {
     fetchAllData();
   };
 
-  // --- LOADING SCREEN ---
+  // --- LOADING & ACCESS SCREENS ---
   if (isLoading) {
     return (
       <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center">
-        <div className="w-12 h-12 border-4 border-red-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <div className="w-12 h-12 border-4 border-[#7B61FF] border-t-transparent rounded-full animate-spin mb-4"></div>
         <p className="font-bold text-gray-400">Verifying Admin Access...</p>
       </div>
     );
   }
 
-  // --- ACCESS DENIED SCREEN ---
   if (!isAdmin) {
     return (
       <div className="min-h-screen bg-[#0B0C10] text-white flex flex-col items-center justify-center p-6 text-center">
@@ -98,77 +150,101 @@ export default function AdminPanel() {
         </div>
         <h1 className="text-3xl font-black text-white mb-2">Access Denied</h1>
         <p className="text-gray-400 max-w-xs mb-8">You do not have administrator privileges to view this page.</p>
-        <button 
-          onClick={() => router.push("/dashboard/home")}
-          className="bg-[#7B61FF] hover:bg-[#6a52df] text-white font-bold py-3 px-8 rounded-xl transition"
-        >
-          Return to App
-        </button>
+        <button onClick={() => router.push("/dashboard/home")} className="bg-[#7B61FF] hover:bg-[#6a52df] text-white font-bold py-3 px-8 rounded-xl transition">Return to App</button>
       </div>
     );
   }
 
-  // --- ADMIN PANEL ---
+  // --- MAIN ADMIN PANEL ---
   return (
-    <div className="min-h-screen bg-black text-white pb-10">
-      <div className="bg-[#121212] p-5 border-b border-gray-800 flex justify-between items-center sticky top-0 z-20">
+    <div className="min-h-screen bg-[#0B0C10] text-white pb-10">
+      <div className="bg-[#12141D] p-5 border-b border-gray-800 flex justify-between items-center sticky top-0 z-20">
         <div>
           <h1 className="text-xl font-extrabold text-red-500 tracking-tight">ADMIN PANEL</h1>
         </div>
-        <button onClick={() => router.push("/dashboard/home")} className="text-xs bg-gray-800 px-3 py-1.5 rounded-lg">Exit</button>
+        <button onClick={() => router.push("/dashboard/home")} className="text-xs bg-gray-800 px-3 py-1.5 rounded-lg border border-gray-700">Exit</button>
       </div>
 
       <div className="flex space-x-2 p-4 overflow-x-auto">
         {["OVERVIEW", "USERS", "WITHDRAWALS"].map((tab) => (
-          <button key={tab} onClick={() => setActiveTab(tab)} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === tab ? "bg-red-600 text-white" : "bg-gray-800 text-gray-400"}`}>{tab}</button>
+          <button key={tab} onClick={() => setActiveTab(tab)} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === tab ? "bg-[#7B61FF] text-white" : "bg-[#12141D] text-gray-400 border border-gray-800"}`}>{tab}</button>
         ))}
       </div>
 
       <div className="p-4 space-y-4">
+        {/* OVERVIEW TAB */}
         {activeTab === "OVERVIEW" && (
           <div className="space-y-4">
-            <div className="bg-gray-900 p-5 rounded-2xl border border-gray-700"><p className="text-gray-400 text-xs font-bold uppercase">Total Users</p><h2 className="text-3xl font-black">{stats.totalUsers}</h2></div>
-            <div className="bg-gray-900 p-5 rounded-2xl border border-green-900"><p className="text-green-500 text-xs font-bold uppercase">Total Deposited</p><h2 className="text-3xl font-black">UGX {stats.totalDeposited.toLocaleString()}</h2></div>
-            <div className="bg-gray-900 p-5 rounded-2xl border border-blue-900"><p className="text-blue-500 text-xs font-bold uppercase">Total Invested</p><h2 className="text-3xl font-black">UGX {stats.totalInvested.toLocaleString()}</h2></div>
+            <div className="bg-[#12141D] p-5 rounded-2xl border border-gray-800"><p className="text-gray-400 text-xs font-bold uppercase">Total Users</p><h2 className="text-3xl font-black">{stats.totalUsers}</h2></div>
+            <div className="bg-[#12141D] p-5 rounded-2xl border border-green-900/50"><p className="text-green-500 text-xs font-bold uppercase">Total Deposited</p><h2 className="text-3xl font-black">UGX {stats.totalDeposited.toLocaleString()}</h2></div>
+            <div className="bg-[#12141D] p-5 rounded-2xl border border-[#7B61FF]/50"><p className="text-[#7B61FF] text-xs font-bold uppercase">Total Invested</p><h2 className="text-3xl font-black">UGX {stats.totalInvested.toLocaleString()}</h2></div>
           </div>
         )}
 
+        {/* USERS TAB */}
         {activeTab === "USERS" && (
           <div className="space-y-3">
             {users.map((user) => (
-              <div key={user.id} className="bg-[#121212] border border-gray-800 p-4 rounded-2xl">
+              <div key={user.id} className={`bg-[#12141D] border ${user.status === 'BANNED' ? 'border-red-900/50' : 'border-gray-800'} p-4 rounded-2xl`}>
+                
                 <div className="flex justify-between items-start mb-3">
                   <div>
                     <p className="font-bold text-white">{user.phone}</p>
-                    <p className="text-[10px] text-gray-500">ID: {user.id.slice(0, 8)}...</p>
-                    <p className="text-xs text-gray-400 mt-1">Name: {user.full_name || "Not bound"}</p>
-                    <p className="text-xs text-gray-400">Acc: {user.bound_number || "Not bound"}</p>
+                    <p className="text-[10px] text-gray-500">Name: {user.full_name || "Not bound"}</p>
+                    <p className="text-xs text-[#00D2FF]">Acc: {user.bound_number || "Not bound"}</p>
                   </div>
-                  <span className={`text-[10px] px-2 py-1 rounded-md font-bold ${user.status === 'BANNED' ? 'bg-red-900/30 text-red-400' : 'bg-green-900/30 text-green-400'}`}>{user.status || 'ACTIVE'}</span>
+                  <span className={`text-[10px] px-2 py-1 rounded-md font-bold ${user.status === 'BANNED' ? 'bg-red-900/30 text-red-400' : 'bg-green-900/30 text-green-400'}`}>
+                    {user.status || 'ACTIVE'}
+                  </span>
                 </div>
-                <div className="bg-black/40 p-2 rounded-xl mb-3">
-                  <p className="text-[10px] text-gray-500">Balance</p>
-                  <p className="text-sm font-bold text-white">UGX {Number(user.balances?.[0]?.available || 0).toLocaleString()}</p>
+
+                <div className="bg-[#0B0C10] p-3 rounded-xl mb-4 flex justify-between items-center">
+                  <p className="text-[10px] text-gray-500 font-bold uppercase">Balance</p>
+                  <p className="text-sm font-black text-white">UGX {Number(user.balances?.[0]?.available || 0).toLocaleString()}</p>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex flex-wrap gap-2">
+                  <button 
+                    onClick={() => handleAdjustBalance(user.id, user.balances?.[0]?.available || 0)} 
+                    className="text-[10px] bg-blue-900/30 text-blue-400 px-3 py-1.5 rounded-lg border border-blue-900/50 hover:bg-blue-900/50"
+                  >
+                    Adjust Balance
+                  </button>
+                  
+                  <button 
+                    onClick={() => handleGrantProduct(user.id)} 
+                    className="text-[10px] bg-[#7B61FF]/20 text-[#7B61FF] px-3 py-1.5 rounded-lg border border-[#7B61FF]/50 hover:bg-[#7B61FF]/30"
+                  >
+                    Grant Product
+                  </button>
+                  
+                  <button 
+                    onClick={() => handleBanUser(user.id, user.status || 'ACTIVE')} 
+                    className="text-[10px] bg-red-900/30 text-red-400 px-3 py-1.5 rounded-lg border border-red-900/50 hover:bg-red-900/50"
+                  >
+                    {user.status === 'BANNED' ? 'Unban User' : 'Ban User'}
+                  </button>
                 </div>
               </div>
             ))}
           </div>
         )}
 
+        {/* WITHDRAWALS TAB */}
         {activeTab === "WITHDRAWALS" && (
           <div className="space-y-3">
             {withdrawals.length === 0 ? <p className="text-center text-gray-500 mt-10">No pending withdrawals.</p> : (
               withdrawals.map((w) => (
-                <div key={w.id} className="bg-[#121212] border border-gray-800 p-4 rounded-2xl">
+                <div key={w.id} className="bg-[#12141D] border border-gray-800 p-4 rounded-2xl">
                   <div className="flex justify-between items-center mb-2">
                     <div>
                       <p className="font-bold text-white">{w.profiles?.full_name || w.profiles?.phone}</p>
-                      <p className="text-xs text-[#00d2ff]">{w.profiles?.bound_number}</p>
+                      <p className="text-xs text-[#00D2FF]">{w.profiles?.bound_number}</p>
                       <p className="text-[10px] text-gray-500 mt-1">{new Date(w.created_at).toLocaleString()}</p>
                     </div>
                     <div className="text-right">
                       <h3 className="text-lg font-black text-red-400">UGX {Number(w.amount).toLocaleString()}</h3>
-                      {/* NET AMOUNT IS NOW 85% (15% fee) */}
                       <p className="text-[10px] text-green-400">Net: UGX {(Number(w.amount) * 0.85).toLocaleString()}</p>
                     </div>
                   </div>
