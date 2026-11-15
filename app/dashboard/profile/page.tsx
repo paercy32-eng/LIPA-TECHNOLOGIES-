@@ -81,7 +81,8 @@ export default function ProfilePage() {
 
   const handleDepositSubmit = async () => {
     const amount = Number(depositAmount);
-    if (amount < 500) return setMessage({ text: "Minimum deposit is 500 UGX", isError: true });
+    // MINIMUM DEPOSIT CHANGED TO 5000
+    if (amount < 5000) return setMessage({ text: "Minimum deposit is 5,000 UGX", isError: true });
     if (!depositPhone || depositPhone.length < 9) return setMessage({ text: "Please enter a valid phone number", isError: true });
 
     setIsProcessing(true);
@@ -133,7 +134,12 @@ export default function ProfilePage() {
       const now = new Date();
       const eatTime = new Intl.DateTimeFormat('en-US', { timeZone: 'Africa/Kampala', hour: 'numeric', hour12: false }).format(now);
       const currentHour = parseInt(eatTime);
-      if (currentHour < 9 || currentHour >= 17) { setIsProcessing(false); return setMessage({ text: "Withdrawals allowed between 9:00 AM and 5:00 PM.", isError: true }); }
+      
+      // WITHDRAWAL HOURS CHANGED TO 9AM - 6PM (18:00)
+      if (currentHour < 9 || currentHour >= 18) { 
+        setIsProcessing(false); 
+        return setMessage({ text: "Withdrawals allowed between 9:00 AM and 6:00 PM.", isError: true }); 
+      }
 
       const newBalance = Number(balance) - amount;
       await supabase.from("balances").update({ available: newBalance }).eq("user_id", userId);
@@ -142,7 +148,9 @@ export default function ProfilePage() {
       setBalance(newBalance.toString());
       setIsWithdrawOpen(false);
       setWithdrawAmount("");
-      alert(`Withdrawal submitted! You will receive UGX ${(amount * 0.87).toLocaleString()} to ${boundNumber}.`);
+      
+      // WITHDRAWAL FEE CHANGED TO 15% (Net is 85% -> 0.85)
+      alert(`Withdrawal submitted! You will receive UGX ${(amount * 0.85).toLocaleString()} to ${boundNumber}.`);
 
     } catch (error: any) {
       setMessage({ text: error.message, isError: true });
@@ -249,7 +257,7 @@ export default function ProfilePage() {
             </div>
             {message.text && <div className={`text-center p-3 mb-4 rounded-xl text-sm font-medium border ${message.isError ? 'bg-red-900/30 text-red-400 border-red-900/50' : 'bg-green-900/30 text-green-400 border-green-900/50'}`}>{message.text}</div>}
             <label className="block text-[10px] font-bold tracking-widest text-gray-400 uppercase mb-1">Amount (UGX)</label>
-            <input type="number" placeholder="Minimum 500" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} className="w-full px-4 py-3 bg-[#0B0C10] border border-gray-700 rounded-xl text-white font-bold text-lg mb-4 focus:outline-none focus:border-[#7B61FF]" />
+            <input type="number" placeholder="Minimum 5,000" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} className="w-full px-4 py-3 bg-[#0B0C10] border border-gray-700 rounded-xl text-white font-bold text-lg mb-4 focus:outline-none focus:border-[#7B61FF]" />
             <label className="block text-[10px] font-bold tracking-widest text-gray-400 uppercase mb-1">Phone Number to Pay From</label>
             <input type="tel" placeholder="e.g. 0700123456" value={depositPhone} onChange={(e) => setDepositPhone(e.target.value)} className="w-full px-4 py-3 bg-[#0B0C10] border border-gray-700 rounded-xl text-white font-bold text-lg mb-6 focus:outline-none focus:border-[#7B61FF]" />
             <button onClick={handleDepositSubmit} disabled={isProcessing} className="w-full font-bold py-4 rounded-xl text-white bg-[#7B61FF] hover:bg-[#6a52df]">{isProcessing ? 'Processing...' : 'Confirm Deposit'}</button>
@@ -276,13 +284,15 @@ export default function ProfilePage() {
             ) : (
               <>
                 <div className="bg-[#00D2FF]/10 border border-[#00D2FF]/20 p-3 rounded-xl mb-4">
-                  <p className="text-xs text-[#00D2FF]">Withdrawing to: <b>{fullName}</b> ({boundNumber}). A fee of <b>13%</b> applies.</p>
+                  {/* FEE CHANGED TO 15% */}
+                  <p className="text-xs text-[#00D2FF]">Withdrawing to: <b>{fullName}</b> ({boundNumber}). A fee of <b>15%</b> applies.</p>
                 </div>
                 <label className="block text-[10px] font-bold tracking-widest text-gray-400 uppercase mb-1">Amount (UGX)</label>
                 <input type="number" placeholder="Minimum 3,000" value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} className="w-full px-4 py-3 bg-[#0B0C10] border border-gray-700 rounded-xl text-white font-bold text-lg mb-2 focus:outline-none focus:border-[#7B61FF]" />
                 <div className="flex justify-between items-center mb-6 px-1">
                   <p className="text-xs text-gray-500">Available: UGX {Number(balance).toLocaleString()}</p>
-                  {withdrawAmount && <p className="text-xs text-green-400 font-bold">You Receive: UGX {(Number(withdrawAmount) * 0.87).toLocaleString()}</p>}
+                  {/* NET AMOUNT CALCULATION CHANGED TO 0.85 */}
+                  {withdrawAmount && <p className="text-xs text-green-400 font-bold">You Receive: UGX {(Number(withdrawAmount) * 0.85).toLocaleString()}</p>}
                 </div>
                 <button onClick={handleWithdrawSubmit} disabled={isProcessing} className="w-full font-bold py-4 rounded-xl text-white bg-[#7B61FF] hover:bg-[#6a52df]">{isProcessing ? 'Processing...' : 'Request Withdrawal'}</button>
               </>
@@ -292,4 +302,4 @@ export default function ProfilePage() {
       )}
     </div>
   );
-  }
+                                                                     }
