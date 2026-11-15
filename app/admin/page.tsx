@@ -19,7 +19,7 @@ export default function AdminPanel() {
   useEffect(() => {
     const checkAdminAndFetch = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return router.push("/");
+      if (!user) return router.push("/auth"); // CHANGED TO /auth
 
       const { data: profile } = await supabase.from("profiles").select("is_admin").eq("id", user.id).single();
       if (!profile?.is_admin) {
@@ -34,11 +34,9 @@ export default function AdminPanel() {
   }, [router]);
 
   const fetchAllData = async () => {
-    // Fetch Users with Bound Details
     const { data: profiles } = await supabase.from("profiles").select("*, balances(available)").order("created_at", { ascending: false });
     if (profiles) setUsers(profiles);
 
-    // Fetch Pending Withdrawals + User Bound Details
     const { data: txs } = await supabase
       .from("transactions")
       .select("*, profiles(phone, full_name, bound_number)")
@@ -47,7 +45,6 @@ export default function AdminPanel() {
       .order("created_at", { ascending: false });
     if (txs) setWithdrawals(txs);
 
-    // Stats
     const { count: userCount } = await supabase.from("profiles").select("*", { count: 'exact', head: true });
     const { data: deposits } = await supabase.from("transactions").select("amount").eq("type", "DEPOSIT").eq("status", "COMPLETED");
     const { data: investments } = await supabase.from("investments").select("amount").eq("status", "ACTIVE");
@@ -65,20 +62,14 @@ export default function AdminPanel() {
     fetchAllData();
   };
 
-  // REJECT WITHDRAWAL & REFUND
   const handleRejectWithdrawal = async (txId: string, userId: string, amount: number) => {
     if (!confirm("Reject this withdrawal? The amount will be refunded to the user's balance.")) return;
-    
-    // 1. Mark as REJECTED
     await supabase.from("transactions").update({ status: "REJECTED" }).eq("id", txId);
-
-    // 2. Refund Balance
     const { data: bal } = await supabase.from("balances").select("available").eq("user_id", userId).single();
     if (bal) {
       const newBalance = Number(bal.available) + Number(amount);
       await supabase.from("balances").update({ available: newBalance }).eq("user_id", userId);
     }
-    
     fetchAllData();
   };
 
@@ -137,7 +128,7 @@ export default function AdminPanel() {
                 <div key={w.id} className="bg-[#121212] border border-gray-800 p-4 rounded-2xl">
                   <div className="flex justify-between items-center mb-2">
                     <div>
-                      <p className="font-bold text-white">{w.profiles?.full_name}</p>
+                      <p className="font-bold text-white">{w.profiles?.full_name || w.profiles?.phone}</p>
                       <p className="text-xs text-[#00d2ff]">{w.profiles?.bound_number}</p>
                       <p className="text-[10px] text-gray-500 mt-1">{new Date(w.created_at).toLocaleString()}</p>
                     </div>
@@ -158,4 +149,4 @@ export default function AdminPanel() {
       </div>
     </div>
   );
-  }
+}
