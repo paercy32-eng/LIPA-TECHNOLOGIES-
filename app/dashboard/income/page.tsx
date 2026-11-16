@@ -50,40 +50,26 @@ const productInfo: Record<string, any> = {
 const getCalendarDaysElapsed = (createdAtStr: string) => {
   const start = new Date(createdAtStr);
   const now = new Date();
-
-  // Convert both to East Africa Time dates (YYYY-MM-DD format)
   const startEAT = start.toLocaleDateString("en-GB", { timeZone: "Africa/Kampala" });
   const nowEAT = now.toLocaleDateString("en-GB", { timeZone: "Africa/Kampala" });
-
-  if (startEAT === nowEAT) return 0; // Same day = 0 days elapsed
-
-  // Parse DD/MM/YYYY
+  if (startEAT === nowEAT) return 0;
   const [sDay, sMonth, sYear] = startEAT.split('/').map(Number);
   const [nDay, nMonth, nYear] = nowEAT.split('/').map(Number);
-
   const startUTC = Date.UTC(sYear, sMonth - 1, sDay);
   const nowUTC = Date.UTC(nYear, nMonth - 1, nDay);
-
   return Math.floor((nowUTC - startUTC) / (1000 * 60 * 60 * 24));
 };
 
-// --- HELPER: Get exact timestamp for next Midnight EAT ---
 const getNextMidnightEAT = () => {
   const now = new Date();
-  const formatter = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Africa/Kampala",
-    hour: "numeric", minute: "numeric", second: "numeric", hour12: false
-  });
+  const formatter = new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Kampala", hour: "numeric", minute: "numeric", second: "numeric", hour12: false });
   const parts = formatter.formatToParts(now);
   const hours = parseInt(parts.find(p => p.type === 'hour')?.value || '0');
   const minutes = parseInt(parts.find(p => p.type === 'minute')?.value || '0');
   const seconds = parseInt(parts.find(p => p.type === 'second')?.value || '0');
-
   const msElapsedToday = ((hours * 60 * 60) + (minutes * 60) + seconds) * 1000;
   const msInDay = 24 * 60 * 60 * 1000;
-  const msLeft = msInDay - msElapsedToday;
-
-  return now.getTime() + msLeft;
+  return now.getTime() + (msInDay - msElapsedToday);
 };
 
 // Live Timer Component
@@ -92,15 +78,11 @@ function LiveTimer({ targetTime, locked, label }: { targetTime: number, locked?:
 
   useEffect(() => {
     if (timeLeft <= 0) return;
-    const interval = setInterval(() => {
-      setTimeLeft(targetTime - Date.now());
-    }, 1000);
+    const interval = setInterval(() => setTimeLeft(targetTime - Date.now()), 1000);
     return () => clearInterval(interval);
   }, [targetTime, timeLeft]);
 
-  if (timeLeft <= 0) {
-    return <span className={locked ? "text-red-400" : "text-green-400"}>{locked ? "Unlocking..." : "Processing..."}</span>;
-  }
+  if (timeLeft <= 0) return <span className="text-green-400">Processing...</span>;
 
   const hours = Math.floor((timeLeft / (1000 * 60 * 60)) % 24);
   const minutes = Math.floor((timeLeft / 1000 / 60) % 60);
@@ -128,14 +110,13 @@ export default function IncomePage() {
         let updatedInvs = [...invs];
         let totalCreditToAdd = 0;
 
-        // Process Auto-Credits
         for (let i = 0; i < updatedInvs.length; i++) {
           const inv = updatedInvs[i];
           const info = productInfo[inv.product_id];
           if (!info) continue;
 
-          // For DAILY_PAYOUT and UNLOCK_24H, we still check if 24-hour cycles have passed
           if (info.category !== "LOCK") {
+            // DAILY PAYOUT / UNLOCK LOGIC
             const startTime = new Date(inv.created_at).getTime();
             const hoursElapsed = (Date.now() - startTime) / (1000 * 60 * 60);
             const daysElapsed = Math.floor(hoursElapsed / 24);
@@ -156,31 +137,30 @@ export default function IncomePage() {
               }
             }
           } else {
-            // LOCK plans: Check if fully finished based on calendar days
+            // LOCKED PLAN LOGIC (CREDITS AT THE END ONLY)
             const calendarDays = getCalendarDaysElapsed(inv.created_at);
             if (calendarDays >= info.cycleDays && inv.status !== "COMPLETED") {
               await supabase.from("investments").update({ status: "COMPLETED" }).eq("id", inv.id);
               updatedInvs[i].status = "COMPLETED";
-              // Note: Usually LOCK plans return the final amount to the balance here, 
-              // but based on your prompt, we are just showing it visually for now.
+              
+              // ADD THE FULL EXPECTED RETURN TO BALANCE ON EXPIRY
+              totalCreditToAdd += Number(inv.expected_return);
             }
           }
         }
 
-        // If we need to credit the user's balance
         if (totalCreditToAdd > 0) {
           const { data: bal } = await supabase.from("balances").select("available").eq("user_id", user.id).single();
           if (bal) {
             const newBalance = Number(bal.available) + totalCreditToAdd;
             await supabase.from("balances").update({ available: newBalance }).eq("user_id", user.id);
-            
             await supabase.from("transactions").insert({
               user_id: user.id,
               type: "COMMISSION",
               amount: totalCreditToAdd,
               status: "COMPLETED"
             });
-            alert(`Auto-Credited UGX ${totalCreditToAdd.toLocaleString()} to your balance!`);
+            alert(`UGX ${totalCreditToAdd.toLocaleString()} has been credited to your balance!`);
           }
         }
 
@@ -190,7 +170,6 @@ export default function IncomePage() {
     };
 
     fetchAndProcessInvestments();
-    
     const interval = setInterval(fetchAndProcessInvestments, 30000); 
     return () => clearInterval(interval);
   }, []);
@@ -218,83 +197,97 @@ export default function IncomePage() {
             const info = productInfo[inv.product_id];
             if (!info) return null;
 
-            // Calculate specific times
             const isLockedPlan = info.category === "LOCK";
             const startTime = new Date(inv.created_at).getTime();
             
-            // For LOCK: Use calendar days (Midnight reset). For others: Use rolling 24h from purchase.
             const daysElapsed = isLockedPlan 
               ? getCalendarDaysElapsed(inv.created_at) 
               : Math.floor((Date.now() - startTime) / (1000 * 60 * 60 * 24));
             
-            // Calculate Next Timer Target
             const nextPayoutTime = isLockedPlan 
               ? getNextMidnightEAT() 
               : startTime + ((inv.payouts_made + 1) * 24 * 60 * 60 * 1000);
 
-            // Calculate Accrued Amount
             const totalExpected = Number(inv.expected_return);
             const initialAmount = Number(inv.amount) || 0;
-            const profit = totalExpected - initialAmount;
+            const totalClaimed = isLockedPlan ? 0 : (inv.payouts_made * info.dailyRate); // Daily pays out, Locked is 0 until end
             
-            // Accrued: Based on continuous time for visual smoothness
-            const hoursElapsed = (Date.now() - startTime) / (1000 * 60 * 60);
-            const accruedProfit = isLockedPlan 
-              ? (hoursElapsed / (info.cycleDays * 24)) * profit 
-              : (inv.payouts_made * info.dailyRate);
+            // Progress Bar
+            const progressPercent = Math.min((daysElapsed / info.cycleDays) * 100, 100);
+            const daysRemaining = Math.max(info.cycleDays - daysElapsed, 0);
 
             const isCompleted = inv.status === "COMPLETED" || daysElapsed >= info.cycleDays;
 
             return (
-              <div key={inv.id} className="bg-[#12141D] border border-gray-800 rounded-3xl p-4 shadow-lg relative overflow-hidden flex flex-col">
-                <div className="flex gap-4 mb-4">
-                  <img src={info.img} alt={info.name} className="w-16 h-16 rounded-2xl object-cover border border-gray-700" />
+              <div key={inv.id} className="bg-[#12141D] border border-gray-800 rounded-3xl p-5 shadow-lg relative overflow-hidden flex flex-col">
+                
+                {/* Top Header */}
+                <div className="flex justify-between items-start mb-4">
+                  <div className="flex gap-3">
+                    <img src={info.img} alt={info.name} className="w-12 h-12 rounded-xl object-cover border border-gray-700" />
+                    <div>
+                      <h3 className="text-[15px] font-extrabold text-white leading-tight">{info.name}</h3>
+                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider mt-1 inline-block ${isCompleted ? 'bg-gray-700 text-gray-300' : 'bg-[#00D2FF]/20 text-[#00D2FF]'}`}>
+                        {isCompleted ? "COMPLETED" : "ACTIVE"}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-gray-500 font-medium">{new Date(inv.created_at).toLocaleDateString()}</p>
+                </div>
+
+                {/* 2x2 Grid Stats */}
+                <div className="bg-[#0B0C10] rounded-2xl p-4 grid grid-cols-2 gap-y-4 gap-x-2 mb-4 border border-gray-800">
                   <div>
-                    <h3 className="text-lg font-extrabold text-white leading-tight">{info.name}</h3>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider mt-1 inline-block ${isCompleted ? 'bg-gray-700 text-gray-300' : 'bg-[#7B61FF]/20 text-[#7B61FF]'}`}>
-                      {isCompleted ? "Completed" : "Active"}
-                    </span>
-                    <p className="text-sm font-black text-[#00D2FF] mt-1">UGX {Number(inv.amount).toLocaleString()}</p>
+                    <p className="text-[10px] text-gray-500 font-medium mb-0.5">Principal</p>
+                    <p className="text-sm font-bold text-white">UGX {initialAmount.toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-gray-500 font-medium mb-0.5">Daily Return</p>
+                    <p className="text-sm font-bold text-[#00D2FF]">
+                      {isLockedPlan ? `UGX ${(totalExpected/1000).toFixed(0)}k end` : `+UGX ${info.dailyRate.toLocaleString()}`}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-gray-500 font-medium mb-0.5">Total Claimed</p>
+                    <p className="text-sm font-bold text-green-400">UGX {totalClaimed.toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-gray-500 font-medium mb-0.5">Cycle Progress</p>
+                    <p className="text-sm font-bold text-white flex items-center gap-1">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                      {daysElapsed} / {info.cycleDays} Days
+                    </p>
                   </div>
                 </div>
 
-                <div className="bg-[#0B0C10] rounded-2xl p-3 flex flex-col border border-gray-800 gap-2">
-                  
-                  {/* Top Row: Time Tracking */}
-                  <div className="flex justify-between items-center border-b border-gray-800 pb-2">
-                     <p className="text-[10px] text-gray-500 font-bold uppercase">
-                       {isLockedPlan ? "Duration" : "Next Payout"}
-                     </p>
-                     
-                     {isCompleted ? (
-                       <p className="text-xs font-bold text-gray-400">Finished</p>
-                     ) : isLockedPlan ? (
-                       <div className="flex items-center gap-2">
-                         {/* Shows e.g. "1 / 3 Days" */}
-                         <p className="text-xs font-bold text-[#00D2FF]">{daysElapsed} / {info.cycleDays} Days</p>
-                         {/* Shows timer until Midnight EAT */}
-                         <p className="text-[10px] font-medium text-gray-500"><LiveTimer targetTime={nextPayoutTime} label="(in" />)</p>
-                       </div>
-                     ) : (
-                       <p className="text-xs font-bold"><LiveTimer targetTime={nextPayoutTime} locked={info.category === "UNLOCK_24H" && daysElapsed === 0} label="in" /></p>
-                     )}
+                {/* Progress Bar & Remaining Text */}
+                <div className="mb-4 px-1">
+                  <div className="flex justify-between items-center mb-1">
+                    <p className="text-[10px] text-gray-400 font-medium">{Math.floor(progressPercent)}% completed</p>
+                    <p className="text-[10px] text-gray-400 font-medium">{daysRemaining} Days remaining</p>
                   </div>
-
-                  {/* Bottom Row: Financials */}
-                  <div className="flex justify-between items-center pt-1">
-                     <div>
-                       <p className="text-[10px] text-gray-500 font-bold uppercase mb-1">
-                         {isLockedPlan ? "Accrued Return" : "Total Earned"}
-                       </p>
-                       <p className="text-sm font-black text-white">UGX {Math.floor(accruedProfit).toLocaleString()}</p>
-                     </div>
-                     <div className="text-right">
-                       <p className="text-[10px] text-gray-500 font-bold uppercase mb-1">Total Return</p>
-                       <p className="text-sm font-black text-green-400">{totalExpected.toLocaleString()} UGX</p>
-                     </div>
+                  <div className="w-full bg-gray-800 h-1.5 rounded-full overflow-hidden">
+                    <div className="h-full bg-[#7B61FF] rounded-full transition-all duration-1000" style={{ width: `${progressPercent}%` }}></div>
                   </div>
-
                 </div>
+
+                {/* Footer Timer */}
+                {!isCompleted && (
+                  <div className="flex justify-between items-center bg-[#0B0C10] border border-[#00D2FF]/30 p-3 rounded-xl">
+                    <div className="flex items-center gap-2">
+                      <div className="w-5 h-5 rounded-full bg-[#00D2FF]/10 flex items-center justify-center">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#00D2FF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                      </div>
+                      <p className="text-[11px] text-white font-medium">
+                        {isLockedPlan ? `Day ${daysElapsed + 1} Maturing:` : `Next Payout in:`}
+                      </p>
+                    </div>
+                    <p className="text-[13px] font-bold">
+                      <LiveTimer targetTime={nextPayoutTime} locked={info.category === "UNLOCK_24H" && daysElapsed === 0} label="" />
+                    </p>
+                  </div>
+                )}
+
               </div>
             );
           })}
@@ -302,4 +295,4 @@ export default function IncomePage() {
       )}
     </div>
   );
-          }
+    }
