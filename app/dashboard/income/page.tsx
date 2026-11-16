@@ -46,6 +46,46 @@ const productInfo: Record<string, any> = {
   "p35": { name: "LipaRegister", category: "UNLOCK_24H", cycleDays: 4, dailyRate: 500000, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400&auto=format&fit=crop" }
 };
 
+// --- HELPER: Calculate Calendar Days (Resets at Midnight EAT) ---
+const getCalendarDaysElapsed = (createdAtStr: string) => {
+  const start = new Date(createdAtStr);
+  const now = new Date();
+
+  // Convert both to East Africa Time dates (YYYY-MM-DD format)
+  const startEAT = start.toLocaleDateString("en-GB", { timeZone: "Africa/Kampala" });
+  const nowEAT = now.toLocaleDateString("en-GB", { timeZone: "Africa/Kampala" });
+
+  if (startEAT === nowEAT) return 0; // Same day = 0 days elapsed
+
+  // Parse DD/MM/YYYY
+  const [sDay, sMonth, sYear] = startEAT.split('/').map(Number);
+  const [nDay, nMonth, nYear] = nowEAT.split('/').map(Number);
+
+  const startUTC = Date.UTC(sYear, sMonth - 1, sDay);
+  const nowUTC = Date.UTC(nYear, nMonth - 1, nDay);
+
+  return Math.floor((nowUTC - startUTC) / (1000 * 60 * 60 * 24));
+};
+
+// --- HELPER: Get exact timestamp for next Midnight EAT ---
+const getNextMidnightEAT = () => {
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Africa/Kampala",
+    hour: "numeric", minute: "numeric", second: "numeric", hour12: false
+  });
+  const parts = formatter.formatToParts(now);
+  const hours = parseInt(parts.find(p => p.type === 'hour')?.value || '0');
+  const minutes = parseInt(parts.find(p => p.type === 'minute')?.value || '0');
+  const seconds = parseInt(parts.find(p => p.type === 'second')?.value || '0');
+
+  const msElapsedToday = ((hours * 60 * 60) + (minutes * 60) + seconds) * 1000;
+  const msInDay = 24 * 60 * 60 * 1000;
+  const msLeft = msInDay - msElapsedToday;
+
+  return now.getTime() + msLeft;
+};
+
 // Live Timer Component
 function LiveTimer({ targetTime, locked, label }: { targetTime: number, locked?: boolean, label: string }) {
   const [timeLeft, setTimeLeft] = useState(targetTime - Date.now());
@@ -82,41 +122,47 @@ export default function IncomePage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Fetch user investments
       const { data: invs } = await supabase.from("investments").select("*").eq("user_id", user.id).order("created_at", { ascending: false });
       
       if (invs) {
         let updatedInvs = [...invs];
         let totalCreditToAdd = 0;
 
-        // Process Auto-Credits (The "Lazy Cron")
+        // Process Auto-Credits
         for (let i = 0; i < updatedInvs.length; i++) {
           const inv = updatedInvs[i];
           const info = productInfo[inv.product_id];
           if (!info) continue;
 
-          const startTime = new Date(inv.created_at).getTime();
-          const hoursElapsed = (Date.now() - startTime) / (1000 * 60 * 60);
-          const daysElapsed = Math.floor(hoursElapsed / 24);
+          // For DAILY_PAYOUT and UNLOCK_24H, we still check if 24-hour cycles have passed
+          if (info.category !== "LOCK") {
+            const startTime = new Date(inv.created_at).getTime();
+            const hoursElapsed = (Date.now() - startTime) / (1000 * 60 * 60);
+            const daysElapsed = Math.floor(hoursElapsed / 24);
 
-          // If it's a payout plan and time has passed
-          if (info.category !== "LOCK" && daysElapsed > (inv.payouts_made || 0)) {
-            const cyclesToPay = daysElapsed - (inv.payouts_made || 0);
-            
-            // Check if the plan has expired
-            if (inv.payouts_made + cyclesToPay > info.cycleDays) {
-               // Edge case: fully paid out. Cap at cycleDays.
-               const remaining = info.cycleDays - (inv.payouts_made || 0);
-               if(remaining > 0) totalCreditToAdd += (remaining * info.dailyRate);
-               // Update DB to mark completed
-               await supabase.from("investments").update({ payouts_made: info.cycleDays, status: "COMPLETED" }).eq("id", inv.id);
-               updatedInvs[i].payouts_made = info.cycleDays;
-               updatedInvs[i].status = "COMPLETED";
-            } else {
-               totalCreditToAdd += (cyclesToPay * info.dailyRate);
-               // Update DB payouts_made
-               await supabase.from("investments").update({ payouts_made: daysElapsed }).eq("id", inv.id);
-               updatedInvs[i].payouts_made = daysElapsed;
+            if (daysElapsed > (inv.payouts_made || 0)) {
+              const cyclesToPay = daysElapsed - (inv.payouts_made || 0);
+              
+              if (inv.payouts_made + cyclesToPay > info.cycleDays) {
+                 const remaining = info.cycleDays - (inv.payouts_made || 0);
+                 if(remaining > 0) totalCreditToAdd += (remaining * info.dailyRate);
+                 await supabase.from("investments").update({ payouts_made: info.cycleDays, status: "COMPLETED" }).eq("id", inv.id);
+                 updatedInvs[i].payouts_made = info.cycleDays;
+                 updatedInvs[i].status = "COMPLETED";
+              } else {
+                 totalCreditToAdd += (cyclesToPay * info.dailyRate);
+                 await supabase.from("investments").update({ payouts_made: daysElapsed }).eq("id", inv.id);
+                 updatedInvs[i].payouts_made = daysElapsed;
+              }
+            }
+          } else {
+            // LOCK plans: Check if fully finished based on calendar days
+            const calendarDays = getCalendarDaysElapsed(inv.created_at);
+            if (calendarDays >= info.cycleDays && inv.status !== "COMPLETED") {
+              await supabase.from("investments").update({ status: "COMPLETED" }).eq("id", inv.id);
+              updatedInvs[i].status = "COMPLETED";
+              // Note: Usually LOCK plans return the final amount to the balance here, 
+              // but based on your prompt, we are just showing it visually for now.
             }
           }
         }
@@ -128,10 +174,9 @@ export default function IncomePage() {
             const newBalance = Number(bal.available) + totalCreditToAdd;
             await supabase.from("balances").update({ available: newBalance }).eq("user_id", user.id);
             
-            // Log the payout transaction
             await supabase.from("transactions").insert({
               user_id: user.id,
-              type: "COMMISSION", // using COMMISSION for payouts
+              type: "COMMISSION",
               amount: totalCreditToAdd,
               status: "COMPLETED"
             });
@@ -146,7 +191,6 @@ export default function IncomePage() {
 
     fetchAndProcessInvestments();
     
-    // Refresh every 30 seconds to check for new payouts
     const interval = setInterval(fetchAndProcessInvestments, 30000); 
     return () => clearInterval(interval);
   }, []);
@@ -174,23 +218,32 @@ export default function IncomePage() {
             const info = productInfo[inv.product_id];
             if (!info) return null;
 
+            // Calculate specific times
+            const isLockedPlan = info.category === "LOCK";
             const startTime = new Date(inv.created_at).getTime();
-            const hoursElapsed = (Date.now() - startTime) / (1000 * 60 * 60);
-            const daysElapsed = Math.floor(hoursElapsed / 24);
             
-            // Calculate Next Payout Time
-            const nextPayoutTime = startTime + ((inv.payouts_made + 1) * 24 * 60 * 60 * 1000);
+            // For LOCK: Use calendar days (Midnight reset). For others: Use rolling 24h from purchase.
+            const daysElapsed = isLockedPlan 
+              ? getCalendarDaysElapsed(inv.created_at) 
+              : Math.floor((Date.now() - startTime) / (1000 * 60 * 60 * 24));
+            
+            // Calculate Next Timer Target
+            const nextPayoutTime = isLockedPlan 
+              ? getNextMidnightEAT() 
+              : startTime + ((inv.payouts_made + 1) * 24 * 60 * 60 * 1000);
 
-            // Calculate Accrued Amount for Lock Plans
+            // Calculate Accrued Amount
             const totalExpected = Number(inv.expected_return);
             const initialAmount = Number(inv.amount) || 0;
             const profit = totalExpected - initialAmount;
-            const accruedProfit = info.category === "LOCK" 
+            
+            // Accrued: Based on continuous time for visual smoothness
+            const hoursElapsed = (Date.now() - startTime) / (1000 * 60 * 60);
+            const accruedProfit = isLockedPlan 
               ? (hoursElapsed / (info.cycleDays * 24)) * profit 
               : (inv.payouts_made * info.dailyRate);
 
-            // Check if fully completed
-            const isCompleted = inv.status === "COMPLETED" || (info.category === "LOCK" && daysElapsed >= info.cycleDays);
+            const isCompleted = inv.status === "COMPLETED" || daysElapsed >= info.cycleDays;
 
             return (
               <div key={inv.id} className="bg-[#12141D] border border-gray-800 rounded-3xl p-4 shadow-lg relative overflow-hidden flex flex-col">
@@ -210,13 +263,18 @@ export default function IncomePage() {
                   {/* Top Row: Time Tracking */}
                   <div className="flex justify-between items-center border-b border-gray-800 pb-2">
                      <p className="text-[10px] text-gray-500 font-bold uppercase">
-                       {info.category === "LOCK" ? "Duration" : "Next Payout"}
+                       {isLockedPlan ? "Duration" : "Next Payout"}
                      </p>
                      
                      {isCompleted ? (
                        <p className="text-xs font-bold text-gray-400">Finished</p>
-                     ) : info.category === "LOCK" ? (
-                       <p className="text-xs font-bold text-[#00D2FF]">{daysElapsed} / {info.cycleDays} Days</p>
+                     ) : isLockedPlan ? (
+                       <div className="flex items-center gap-2">
+                         {/* Shows e.g. "1 / 3 Days" */}
+                         <p className="text-xs font-bold text-[#00D2FF]">{daysElapsed} / {info.cycleDays} Days</p>
+                         {/* Shows timer until Midnight EAT */}
+                         <p className="text-[10px] font-medium text-gray-500"><LiveTimer targetTime={nextPayoutTime} label="(in" />)</p>
+                       </div>
                      ) : (
                        <p className="text-xs font-bold"><LiveTimer targetTime={nextPayoutTime} locked={info.category === "UNLOCK_24H" && daysElapsed === 0} label="in" /></p>
                      )}
@@ -226,7 +284,7 @@ export default function IncomePage() {
                   <div className="flex justify-between items-center pt-1">
                      <div>
                        <p className="text-[10px] text-gray-500 font-bold uppercase mb-1">
-                         {info.category === "LOCK" ? "Accrued Return" : "Total Earned"}
+                         {isLockedPlan ? "Accrued Return" : "Total Earned"}
                        </p>
                        <p className="text-sm font-black text-white">UGX {Math.floor(accruedProfit).toLocaleString()}</p>
                      </div>
@@ -244,4 +302,4 @@ export default function IncomePage() {
       )}
     </div>
   );
-    }
+          }
