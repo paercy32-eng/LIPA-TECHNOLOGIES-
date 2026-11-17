@@ -20,13 +20,15 @@ export default function ProfilePage() {
   
   // Modals State
   const [isDepositOpen, setIsDepositOpen] = useState(false);
+  const [depositStep, setDepositStep] = useState(1);
   const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
   const [isBindOpen, setIsBindOpen] = useState(false);
-  const [isWhatsAppOpen, setIsWhatsAppOpen] = useState(false); // NEW
+  const [isWhatsAppOpen, setIsWhatsAppOpen] = useState(false); 
   
   // Form States
   const [depositAmount, setDepositAmount] = useState("");
   const [depositPhone, setDepositPhone] = useState("");
+  const [txId, setTxId] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
   
   // Bind Form State
@@ -35,6 +37,7 @@ export default function ProfilePage() {
   
   const [isProcessing, setIsProcessing] = useState(false);
   const [message, setMessage] = useState({ text: "", isError: false });
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     const getUser = async () => {
@@ -47,12 +50,7 @@ export default function ProfilePage() {
         setDepositPhone(phone); 
         setUserId(user.id);
 
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("display_name, full_name, bound_number")
-          .eq("id", user.id)
-          .single();
-          
+        const { data: profile } = await supabase.from("profiles").select("display_name, full_name, bound_number").eq("id", user.id).single();
         if (profile) {
           setDisplayName(profile.display_name || `user ${phone.slice(-4)}`);
           setFullName(profile.full_name || "");
@@ -70,21 +68,22 @@ export default function ProfilePage() {
     getUser();
   }, [router]);
 
-  // --- BIND ACCOUNT LOGIC ---
+  const handleCopy = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   const handleBindSubmit = async () => {
     if (!bindName || !bindPhone) return setMessage({ text: "Please fill all fields", isError: true });
     if (bindPhone.length < 9) return setMessage({ text: "Invalid phone number", isError: true });
 
     setIsProcessing(true);
-    const { error } = await supabase.from("profiles").update({
-      full_name: bindName,
-      bound_number: bindPhone
-    }).eq("id", userId);
-
+    const { error } = await supabase.from("profiles").update({ full_name: bindName, bound_number: bindPhone }).eq("id", userId);
     setIsProcessing(false);
-    if (error) {
-      setMessage({ text: error.message, isError: true });
-    } else {
+    
+    if (error) setMessage({ text: error.message, isError: true });
+    else {
       setFullName(bindName);
       setBoundNumber(bindPhone);
       setIsBindOpen(false);
@@ -92,33 +91,38 @@ export default function ProfilePage() {
     }
   };
 
-  // --- DEPOSIT LOGIC ---
-  const handleDepositSubmit = async () => {
+  // --- DEPOSIT LOGIC (MANUAL) ---
+  const proceedToPayment = () => {
     const amount = Number(depositAmount);
     if (amount < 5000) return setMessage({ text: "Minimum deposit is 5,000 UGX", isError: true });
     if (!depositPhone || depositPhone.length < 9) return setMessage({ text: "Please enter a valid phone number", isError: true });
+    setMessage({ text: "", isError: false });
+    setDepositStep(2);
+  };
+
+  const handleDepositSubmit = async () => {
+    if (!txId || txId.length < 5) return setMessage({ text: "Please enter a valid Transaction ID", isError: true });
 
     setIsProcessing(true);
     setMessage({ text: "", isError: false });
 
     try {
-      const response = await fetch("/api/deposit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount, phone: depositPhone, userId })
+      const { error } = await supabase.from("transactions").insert({
+        user_id: userId,
+        type: "DEPOSIT",
+        amount: Number(depositAmount),
+        status: "PENDING",
+        tx_id: txId,
+        payment_phone: depositPhone
       });
       
-      const responseText = await response.text();
-      if (!responseText) throw new Error(`Server Error (${response.status}): Empty response. Check Vercel logs.`);
-
-      let data;
-      try { data = JSON.parse(responseText); } catch (e) { throw new Error(`Server Error: Invalid format. ${responseText.substring(0, 50)}...`); }
-
-      if (!response.ok) throw new Error(data.error || "Deposit failed");
+      if (error) throw error;
 
       setIsDepositOpen(false);
       setDepositAmount("");
-      alert("Check your phone and enter your Mobile Money PIN to complete the deposit.");
+      setTxId("");
+      setDepositStep(1);
+      alert("Deposit submitted! Please wait 5 to 30 minutes for admin approval.");
     } catch (error: any) {
       setMessage({ text: error.message, isError: true });
     } finally {
@@ -126,7 +130,6 @@ export default function ProfilePage() {
     }
   };
 
-  // --- WITHDRAW LOGIC ---
   const handleWithdrawSubmit = async () => {
     if (!boundNumber) {
       setIsWithdrawOpen(false);
@@ -141,17 +144,13 @@ export default function ProfilePage() {
     setMessage({ text: "", isError: false });
 
     try {
-      const { count: activeInv, error: invError } = await supabase.from("investments").select("*", { count: 'exact', head: true }).eq("user_id", userId).eq("status", "ACTIVE");
-      if (invError) throw invError;
+      const { count: activeInv } = await supabase.from("investments").select("*", { count: 'exact', head: true }).eq("user_id", userId).eq("status", "ACTIVE");
       if (activeInv === 0) { setIsProcessing(false); return setMessage({ text: "You must have an active product to withdraw.", isError: true }); }
 
       const now = new Date();
       const eatTime = new Intl.DateTimeFormat('en-US', { timeZone: 'Africa/Kampala', hour: 'numeric', hour12: false }).format(now);
       const currentHour = parseInt(eatTime);
-      if (currentHour < 9 || currentHour >= 18) { 
-        setIsProcessing(false); 
-        return setMessage({ text: "Withdrawals allowed between 9:00 AM and 6:00 PM.", isError: true }); 
-      }
+      if (currentHour < 9 || currentHour >= 18) { setIsProcessing(false); return setMessage({ text: "Withdrawals allowed between 9:00 AM and 6:00 PM.", isError: true }); }
 
       const newBalance = Number(balance) - amount;
       await supabase.from("balances").update({ available: newBalance }).eq("user_id", userId);
@@ -176,6 +175,7 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-[#0B0C10] text-white p-5 pb-24">
+      {/* Header */}
       <div className="flex justify-between items-center mb-8 pt-4">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 bg-[#7B61FF] rounded-xl flex items-center justify-center text-xl font-bold text-white shadow-[0_0_15px_rgba(123,97,255,0.4)]">LP</div>
@@ -195,7 +195,7 @@ export default function ProfilePage() {
           <h2 className="text-5xl font-black text-white tracking-tight">{Number(balance).toLocaleString()}</h2>
         </div>
         <div className="flex gap-3">
-          <button onClick={() => { setIsDepositOpen(true); setMessage({text:"", isError:false}); }} className="flex-1 bg-[#7B61FF] hover:bg-[#6a52df] text-white font-bold py-3 rounded-xl transition shadow-[0_5px_15px_rgba(123,97,255,0.3)] text-sm">Deposit</button>
+          <button onClick={() => { setIsDepositOpen(true); setDepositStep(1); setMessage({text:"", isError:false}); }} className="flex-1 bg-[#7B61FF] hover:bg-[#6a52df] text-white font-bold py-3 rounded-xl transition shadow-[0_5px_15px_rgba(123,97,255,0.3)] text-sm">Deposit</button>
           <button onClick={() => { setIsWithdrawOpen(true); setMessage({text:"", isError:false}); }} className="flex-1 bg-[#1A1D27] hover:bg-gray-800 text-white font-bold py-3 rounded-xl transition text-sm border border-gray-700">Withdraw</button>
         </div>
       </div>
@@ -224,7 +224,6 @@ export default function ProfilePage() {
           </div>
         </button>
 
-        {/* Join WhatsApp Button */}
         <button onClick={() => setIsWhatsAppOpen(true)} className="w-full flex items-center justify-between bg-[#12141D] border border-gray-800 p-4 rounded-2xl hover:bg-gray-800 transition group shadow-sm">
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 bg-green-500/10 rounded-xl flex items-center justify-center text-green-500">
@@ -249,6 +248,59 @@ export default function ProfilePage() {
         <span className="font-bold text-red-400 tracking-widest uppercase text-sm">Log Out</span>
       </button>
 
+      {/* --- MULTI-STEP DEPOSIT MODAL --- */}
+      {isDepositOpen && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#12141D] border border-gray-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-bold text-white">{depositStep === 1 ? "Deposit Amount" : "Payment Details"}</h3>
+              <button onClick={() => setIsDepositOpen(false)} className="text-gray-400 hover:text-white">✕</button>
+            </div>
+            
+            {message.text && <div className={`text-center p-3 mb-4 rounded-xl text-sm font-medium border ${message.isError ? 'bg-red-900/30 text-red-400 border-red-900/50' : 'bg-green-900/30 text-green-400 border-green-900/50'}`}>{message.text}</div>}
+
+            {depositStep === 1 ? (
+              <>
+                <label className="block text-[10px] font-bold tracking-widest text-gray-400 uppercase mb-1">Amount (UGX)</label>
+                <input type="number" placeholder="Minimum 5,000" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} className="w-full px-4 py-3 bg-[#0B0C10] border border-gray-700 rounded-xl text-white font-bold text-lg mb-4 focus:outline-none focus:border-[#7B61FF]" />
+                
+                <label className="block text-[10px] font-bold tracking-widest text-gray-400 uppercase mb-1">Phone Number to Pay From</label>
+                <input type="tel" placeholder="e.g. 0700123456" value={depositPhone} onChange={(e) => setDepositPhone(e.target.value)} className="w-full px-4 py-3 bg-[#0B0C10] border border-gray-700 rounded-xl text-white font-bold text-lg mb-6 focus:outline-none focus:border-[#7B61FF]" />
+                
+                <button onClick={proceedToPayment} className="w-full font-bold py-4 rounded-xl text-white bg-[#7B61FF] hover:bg-[#6a52df]">Confirm Amount</button>
+              </>
+            ) : (
+              <>
+                <div className="bg-[#0B0C10] border border-gray-700 rounded-xl p-4 mb-4">
+                  <p className="text-[10px] text-gray-400 font-bold uppercase mb-1">Pay to this Number</p>
+                  <div className="flex justify-between items-center mb-2">
+                    <p className="text-lg font-black text-white">0707828822</p>
+                    <button onClick={() => handleCopy("0707828822")} className="text-xs bg-gray-800 text-[#00D2FF] px-3 py-1.5 rounded-lg border border-gray-700">
+                      {copied ? "Copied!" : "Copy"}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase mb-1">Registered Name</p>
+                  <p className="text-sm font-bold text-[#00D2FF]">PETER KIREMBWE</p>
+                </div>
+
+                <div className="bg-blue-900/20 border border-blue-900/50 rounded-xl p-3 mb-4 text-center">
+                  <p className="text-xs text-blue-200">Dial <b className="text-white text-sm">*185*1#</b> to deposit exactly <b className="text-white">UGX {Number(depositAmount).toLocaleString()}</b></p>
+                </div>
+
+                <label className="block text-[10px] font-bold tracking-widest text-gray-400 uppercase mb-1">Transaction ID</label>
+                <input type="text" placeholder="Enter the ID from SMS" value={txId} onChange={(e) => setTxId(e.target.value)} className="w-full px-4 py-3 bg-[#0B0C10] border border-gray-700 rounded-xl text-white font-bold text-lg mb-4 focus:outline-none focus:border-[#7B61FF]" />
+                
+                <button onClick={handleDepositSubmit} disabled={isProcessing} className="w-full font-bold py-4 rounded-xl text-white bg-[#7B61FF] hover:bg-[#6a52df] mb-4">
+                  {isProcessing ? 'Submitting...' : 'Submit Deposit'}
+                </button>
+                
+                <p className="text-[10px] text-center text-gray-500">Wait between 5 to 30 minutes for admin to approve.</p>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* --- WHATSAPP GROUPS MODAL --- */}
       {isWhatsAppOpen && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
@@ -257,29 +309,10 @@ export default function ProfilePage() {
               <h3 className="text-xl font-bold text-white">Join WhatsApp</h3>
               <button onClick={() => setIsWhatsAppOpen(false)} className="text-gray-400 hover:text-white">✕</button>
             </div>
-            
             <p className="text-sm text-gray-400 mb-6 text-center">Select a group to join below:</p>
-
             <div className="space-y-3">
-              <a 
-                href="https://chat.whatsapp.com/Lo2qmclH4Vf6nvViguQO5w?s=cl&p=a&iam=2" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold py-4 rounded-xl transition shadow-lg shadow-[#25D366]/20"
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
-                Group 1
-              </a>
-
-              <a 
-                href="https://chat.whatsapp.com/K7VPMO3ux3r1ih9MR3KM0v?s=cl&p=a&iam=2" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold py-4 rounded-xl transition shadow-lg shadow-[#25D366]/20"
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
-                Group 2
-              </a>
+              <a href="https://chat.whatsapp.com/Lo2qmclH4Vf6nvViguQO5w?s=cl&p=a&iam=2" target="_blank" rel="noopener noreferrer" className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold py-4 rounded-xl transition shadow-lg shadow-[#25D366]/20">Group 1</a>
+              <a href="https://chat.whatsapp.com/K7VPMO3ux3r1ih9MR3KM0v?s=cl&p=a&iam=2" target="_blank" rel="noopener noreferrer" className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold py-4 rounded-xl transition shadow-lg shadow-[#25D366]/20">Group 2</a>
             </div>
           </div>
         </div>
@@ -300,24 +333,6 @@ export default function ProfilePage() {
             <button onClick={handleBindSubmit} disabled={isProcessing} className="w-full font-bold py-4 rounded-xl text-white bg-[#7B61FF] hover:bg-[#6a52df]">
               {isProcessing ? 'Saving...' : boundNumber ? 'Update Account' : 'Save Account'}
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* --- DEPOSIT MODAL --- */}
-      {isDepositOpen && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#12141D] border border-gray-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-bold text-white">Deposit Funds</h3>
-              <button onClick={() => setIsDepositOpen(false)} className="text-gray-400 hover:text-white">✕</button>
-            </div>
-            {message.text && <div className={`text-center p-3 mb-4 rounded-xl text-sm font-medium border ${message.isError ? 'bg-red-900/30 text-red-400 border-red-900/50' : 'bg-green-900/30 text-green-400 border-green-900/50'}`}>{message.text}</div>}
-            <label className="block text-[10px] font-bold tracking-widest text-gray-400 uppercase mb-1">Amount (UGX)</label>
-            <input type="number" placeholder="Minimum 5,000" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} className="w-full px-4 py-3 bg-[#0B0C10] border border-gray-700 rounded-xl text-white font-bold text-lg mb-4 focus:outline-none focus:border-[#7B61FF]" />
-            <label className="block text-[10px] font-bold tracking-widest text-gray-400 uppercase mb-1">Phone Number to Pay From</label>
-            <input type="tel" placeholder="e.g. 0700123456" value={depositPhone} onChange={(e) => setDepositPhone(e.target.value)} className="w-full px-4 py-3 bg-[#0B0C10] border border-gray-700 rounded-xl text-white font-bold text-lg mb-6 focus:outline-none focus:border-[#7B61FF]" />
-            <button onClick={handleDepositSubmit} disabled={isProcessing} className="w-full font-bold py-4 rounded-xl text-white bg-[#7B61FF] hover:bg-[#6a52df]">{isProcessing ? 'Processing...' : 'Confirm Deposit'}</button>
           </div>
         </div>
       )}
