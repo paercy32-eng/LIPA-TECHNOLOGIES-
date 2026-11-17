@@ -107,12 +107,27 @@ export default function ProfilePage() {
     setMessage({ text: "", isError: false });
 
     try {
+      const cleanTxId = txId.trim().toUpperCase(); // Standardize the ID to prevent bypasses
+
+      // 1. Check if this Transaction ID has already been used
+      const { data: existingTx } = await supabase
+        .from("transactions")
+        .select("id")
+        .eq("tx_id", cleanTxId)
+        .maybeSingle();
+
+      if (existingTx) {
+        setIsProcessing(false);
+        return setMessage({ text: "This Transaction ID has already been submitted. Fraudulent attempts will be banned.", isError: true });
+      }
+
+      // 2. Insert the new deposit request
       const { error } = await supabase.from("transactions").insert({
         user_id: userId,
         type: "DEPOSIT",
         amount: Number(depositAmount),
         status: "PENDING",
-        tx_id: txId,
+        tx_id: cleanTxId,
         payment_phone: depositPhone
       });
       
@@ -124,7 +139,12 @@ export default function ProfilePage() {
       setDepositStep(1);
       alert("Deposit submitted! Please wait 5 to 30 minutes for admin approval.");
     } catch (error: any) {
-      setMessage({ text: error.message, isError: true });
+      // Catch database-level unique constraint error just in case
+      if (error.message.includes("idx_unique_tx_id")) {
+        setMessage({ text: "This Transaction ID has already been used.", isError: true });
+      } else {
+        setMessage({ text: error.message, isError: true });
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -372,4 +392,4 @@ export default function ProfilePage() {
       )}
     </div>
   );
-  }
+}
