@@ -53,11 +53,10 @@ export default function AdminPanel() {
   const [isAdmin, setIsAdmin] = useState(false);
   
   const [users, setUsers] = useState<any[]>([]);
-  const [deposits, setDeposits] = useState<any[]>([]); // New
+  const [deposits, setDeposits] = useState<any[]>([]); 
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [stats, setStats] = useState({ totalUsers: 0, totalDeposited: 0, totalInvested: 0 });
 
-  // Grant Product State
   const [isGrantModalOpen, setIsGrantModalOpen] = useState(false);
   const [grantUserId, setGrantUserId] = useState("");
   const [grantProductId, setGrantProductId] = useState("p1");
@@ -81,25 +80,12 @@ export default function AdminPanel() {
     const { data: profiles } = await supabase.from("profiles").select("*, balances(available)").order("created_at", { ascending: false });
     if (profiles) setUsers(profiles);
 
-    // Fetch Pending Deposits
-    const { data: dep } = await supabase
-      .from("transactions")
-      .select("*, profiles(phone)")
-      .eq("type", "DEPOSIT")
-      .eq("status", "PENDING")
-      .order("created_at", { ascending: false });
+    const { data: dep } = await supabase.from("transactions").select("*, profiles(phone)").eq("type", "DEPOSIT").eq("status", "PENDING").order("created_at", { ascending: false });
     if (dep) setDeposits(dep);
 
-    // Fetch Pending Withdrawals
-    const { data: txs } = await supabase
-      .from("transactions")
-      .select("*, profiles(phone, full_name, bound_number)")
-      .eq("type", "WITHDRAWAL")
-      .eq("status", "PENDING")
-      .order("created_at", { ascending: false });
+    const { data: txs } = await supabase.from("transactions").select("*, profiles(phone, full_name, bound_number)").eq("type", "WITHDRAWAL").eq("status", "PENDING").order("created_at", { ascending: false });
     if (txs) setWithdrawals(txs);
 
-    // Stats
     const { count: userCount } = await supabase.from("profiles").select("*", { count: 'exact', head: true });
     const { data: deps } = await supabase.from("transactions").select("amount").eq("type", "DEPOSIT").eq("status", "COMPLETED");
     const { data: investments } = await supabase.from("investments").select("amount").eq("status", "ACTIVE");
@@ -111,10 +97,27 @@ export default function AdminPanel() {
     });
   };
 
+  // --- UPDATED ADJUST BALANCE LOGIC ---
   const handleAdjustBalance = async (userId: string, currentBalance: number) => {
-    const newBalance = prompt("Enter new balance (UGX):", currentBalance.toString());
-    if (newBalance === null) return;
-    await supabase.from("balances").update({ available: Number(newBalance) }).eq("user_id", userId);
+    const newBalanceStr = prompt("Enter new balance (UGX):", currentBalance.toString());
+    if (newBalanceStr === null) return;
+    
+    const newBalance = Number(newBalanceStr);
+    const difference = newBalance - currentBalance;
+
+    // 1. Update the balance
+    await supabase.from("balances").update({ available: newBalance }).eq("user_id", userId);
+    
+    // 2. Leave a footprint so the Home Page knows this user was manually adjusted
+    if (difference !== 0) {
+      await supabase.from("transactions").insert({
+        user_id: userId,
+        type: "ADMIN_ADJUSTMENT",
+        amount: Math.abs(difference), // Store positive amount
+        status: "COMPLETED"
+      });
+    }
+    
     fetchAllData();
   };
 
@@ -146,21 +149,14 @@ export default function AdminPanel() {
     fetchAllData();
   };
 
-  // --- APPROVE DEPOSIT & PAY COMMISSIONS ---
   const handleApproveDeposit = async (txId: string, userId: string, amount: number) => {
     if (!confirm("Approve this deposit? Ensure the Transaction ID is correct.")) return;
 
     try {
-      // 1. Mark Deposit as COMPLETED
       await supabase.from("transactions").update({ status: "COMPLETED" }).eq("id", txId);
-
-      // 2. Credit User Balance
       const { data: bal } = await supabase.from("balances").select("available").eq("user_id", userId).single();
-      if (bal) {
-        await supabase.from("balances").update({ available: Number(bal.available) + amount }).eq("user_id", userId);
-      }
+      if (bal) await supabase.from("balances").update({ available: Number(bal.available) + amount }).eq("user_id", userId);
 
-      // 3. Check if this is their FIRST deposit to pay commissions
       const { count: depositCount } = await supabase.from("transactions").select("*", { count: 'exact', head: true }).eq("user_id", userId).eq("type", "DEPOSIT").eq("status", "COMPLETED");
       
       if (depositCount === 1) {
@@ -171,14 +167,9 @@ export default function AdminPanel() {
         for (let level = 1; level <= 3; level++) {
           if (!currentReferrerId) break;
           const commissionAmount = amount * commissionRates[level - 1];
-          
           const { data: refBal } = await supabase.from("balances").select("available, total_commission").eq("user_id", currentReferrerId).single();
           if (refBal) {
-            await supabase.from("balances").update({ 
-              available: Number(refBal.available) + commissionAmount,
-              total_commission: Number(refBal.total_commission) + commissionAmount
-            }).eq("user_id", currentReferrerId);
-
+            await supabase.from("balances").update({ available: Number(refBal.available) + commissionAmount, total_commission: Number(refBal.total_commission) + commissionAmount }).eq("user_id", currentReferrerId);
             await supabase.from("transactions").insert({ user_id: currentReferrerId, type: "COMMISSION", amount: commissionAmount, status: "COMPLETED" });
             await supabase.from("referrals").upsert({ referrer_id: currentReferrerId, referee_id: userId, level: level, commission_earned: commissionAmount }, { onConflict: 'referrer_id,referee_id' });
           }
@@ -186,7 +177,6 @@ export default function AdminPanel() {
           currentReferrerId = nextProfile?.referred_by;
         }
       }
-      
       alert("Deposit Approved & Balance Credited!");
       fetchAllData();
     } catch (err: any) {
@@ -246,27 +236,32 @@ export default function AdminPanel() {
 
         {activeTab === "USERS" && (
           <div className="space-y-3">
-            {users.map((user) => (
-              <div key={user.id} className={`bg-[#12141D] border ${user.status === 'BANNED' ? 'border-red-900/50' : 'border-gray-800'} p-4 rounded-2xl`}>
-                <div className="flex justify-between items-start mb-3">
-                  <div>
-                    <p className="font-bold text-white">{user.phone}</p>
-                    <p className="text-[10px] text-gray-500">Name: {user.full_name || "Not bound"}</p>
-                    <p className="text-xs text-[#00D2FF]">Acc: {user.bound_number || "Not bound"}</p>
+            {users.map((user) => {
+              // Safely parse the balance whether Supabase returns an array or object
+              const userBalance = Number(user.balances?.available ?? user.balances?.[0]?.available ?? 0);
+              
+              return (
+                <div key={user.id} className={`bg-[#12141D] border ${user.status === 'BANNED' ? 'border-red-900/50' : 'border-gray-800'} p-4 rounded-2xl`}>
+                  <div className="flex justify-between items-start mb-3">
+                    <div>
+                      <p className="font-bold text-white">{user.phone}</p>
+                      <p className="text-[10px] text-gray-500">Name: {user.full_name || "Not bound"}</p>
+                      <p className="text-xs text-[#00D2FF]">Acc: {user.bound_number || "Not bound"}</p>
+                    </div>
+                    <span className={`text-[10px] px-2 py-1 rounded-md font-bold ${user.status === 'BANNED' ? 'bg-red-900/30 text-red-400' : 'bg-green-900/30 text-green-400'}`}>{user.status || 'ACTIVE'}</span>
                   </div>
-                  <span className={`text-[10px] px-2 py-1 rounded-md font-bold ${user.status === 'BANNED' ? 'bg-red-900/30 text-red-400' : 'bg-green-900/30 text-green-400'}`}>{user.status || 'ACTIVE'}</span>
+                  <div className="bg-[#0B0C10] p-3 rounded-xl mb-4 flex justify-between items-center">
+                    <p className="text-[10px] text-gray-500 font-bold uppercase">Balance</p>
+                    <p className="text-sm font-black text-white">UGX {userBalance.toLocaleString()}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button onClick={() => handleAdjustBalance(user.id, userBalance)} className="text-[10px] bg-blue-900/30 text-blue-400 px-3 py-1.5 rounded-lg border border-blue-900/50">Adjust Balance</button>
+                    <button onClick={() => openGrantModal(user.id)} className="text-[10px] bg-[#7B61FF]/20 text-[#7B61FF] px-3 py-1.5 rounded-lg border border-[#7B61FF]/50">Grant Product</button>
+                    <button onClick={() => handleBanUser(user.id, user.status || 'ACTIVE')} className="text-[10px] bg-red-900/30 text-red-400 px-3 py-1.5 rounded-lg border border-red-900/50">{user.status === 'BANNED' ? 'Unban User' : 'Ban User'}</button>
+                  </div>
                 </div>
-                <div className="bg-[#0B0C10] p-3 rounded-xl mb-4 flex justify-between items-center">
-                  <p className="text-[10px] text-gray-500 font-bold uppercase">Balance</p>
-                  <p className="text-sm font-black text-white">UGX {Number(user.balances?.[0]?.available || 0).toLocaleString()}</p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <button onClick={() => handleAdjustBalance(user.id, user.balances?.[0]?.available || 0)} className="text-[10px] bg-blue-900/30 text-blue-400 px-3 py-1.5 rounded-lg border border-blue-900/50">Adjust Balance</button>
-                  <button onClick={() => openGrantModal(user.id)} className="text-[10px] bg-[#7B61FF]/20 text-[#7B61FF] px-3 py-1.5 rounded-lg border border-[#7B61FF]/50">Grant Product</button>
-                  <button onClick={() => handleBanUser(user.id, user.status || 'ACTIVE')} className="text-[10px] bg-red-900/30 text-red-400 px-3 py-1.5 rounded-lg border border-red-900/50">{user.status === 'BANNED' ? 'Unban User' : 'Ban User'}</button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -285,8 +280,8 @@ export default function AdminPanel() {
                     </div>
                   </div>
                   <div className="bg-[#0B0C10] p-3 rounded-xl mb-4">
-                    <p className="text-[10px] text-gray-500 font-bold uppercase mb-1">Paid from: <span className="text-white text-xs font-black">{d.payment_phone}</span></p>
-                    <p className="text-[10px] text-gray-500 font-bold uppercase">TxID: <span className="text-[#00D2FF] text-xs font-black">{d.tx_id}</span></p>
+                    <p className="text-[10px] text-gray-500 font-bold uppercase mb-1">Paid from: <span className="text-white text-xs font-black">{d.payment_phone || "N/A"}</span></p>
+                    <p className="text-[10px] text-gray-500 font-bold uppercase">TxID: <span className="text-[#00D2FF] text-xs font-black">{d.tx_id || "N/A"}</span></p>
                   </div>
                   <div className="flex gap-2">
                     <button onClick={() => handleApproveDeposit(d.id, d.user_id, d.amount)} className="flex-1 bg-green-600 hover:bg-green-500 text-white font-bold py-2 rounded-xl text-sm">Approve</button>
@@ -324,7 +319,7 @@ export default function AdminPanel() {
         )}
       </div>
 
-      {/* GRANT MODAL */}
+      {/* GRANT PRODUCT MODAL */}
       {isGrantModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#12141D] border border-gray-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl">
@@ -344,4 +339,4 @@ export default function AdminPanel() {
       )}
     </div>
   );
-  }
+   }
