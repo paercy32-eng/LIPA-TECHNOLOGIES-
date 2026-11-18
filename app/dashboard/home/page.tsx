@@ -21,7 +21,6 @@ export default function HomePage() {
     { id: "UNLOCK_24H", label: "24Hr Unlock" },
   ];
 
-  // Added price and dailyRate to products for instant payout logic
   const products = [
     { id: "p1", name: "LipaVault", category: "LOCK", price: 10000, daily: "0", cycle: "3d", total: 25000, dailyRate: 0, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400&auto=format&fit=crop" },
     { id: "p2", name: "LipaCore", category: "LOCK", price: 5000, daily: "0", cycle: "3d", total: 13000, dailyRate: 0, img: "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?q=80&w=400&auto=format&fit=crop" },
@@ -93,19 +92,26 @@ export default function HomePage() {
       const { count: invCount } = await supabase.from("investments").select("*", { count: 'exact', head: true }).eq("user_id", userId);
 
       if (invCount === 0) {
-        const { data: deposits } = await supabase.from("transactions").select("amount").eq("user_id", userId).eq("type", "DEPOSIT").eq("status", "COMPLETED");
-        const totalDeposited = deposits?.reduce((sum, tx) => sum + Number(tx.amount), 0) || 0;
-        if (totalDeposited < product.price) {
-          setIsProcessing(false);
-          return alert(`First Purchase Rule: Your first purchase must be fully funded by approved deposits.`);
+        // --- NEW EXCEPTION LOGIC ---
+        // Check if admin has ever adjusted this user's balance
+        const { count: adminAdjCount } = await supabase.from("transactions").select("*", { count: 'exact', head: true }).eq("user_id", userId).eq("type", "ADMIN_ADJUSTMENT");
+
+        // Only enforce the strict deposit rule if NO admin adjustment exists
+        if (adminAdjCount === 0) {
+          const { data: deposits } = await supabase.from("transactions").select("amount").eq("user_id", userId).eq("type", "DEPOSIT").eq("status", "COMPLETED");
+          const totalDeposited = deposits?.reduce((sum, tx) => sum + Number(tx.amount), 0) || 0;
+          
+          if (totalDeposited < product.price) {
+            setIsProcessing(false);
+            return alert(`First Purchase Rule: Your first purchase must be fully funded by approved deposits.`);
+          }
         }
       }
 
-      // 1. Deduct Balance
+      // Deduct balance & create investment
       const newBalance = currentBalance - product.price;
       await supabase.from("balances").update({ available: newBalance }).eq("user_id", userId);
 
-      // 2. Create Investment
       const { error: invError } = await supabase.from("investments").insert({
         user_id: userId,
         product_id: product.id,
@@ -116,33 +122,19 @@ export default function HomePage() {
       });
       if (invError) throw invError;
 
-      // 3. INSTANT PAYOUT FOR DAILY PAYOUT CATEGORY
+      // INSTANT PAYOUT FOR DAILY PAYOUT CATEGORY
       let finalBalance = newBalance;
       if (product.category === "DAILY_PAYOUT") {
         finalBalance = newBalance + product.dailyRate;
-        
-        // Credit user balance
         await supabase.from("balances").update({ available: finalBalance }).eq("user_id", userId);
-        
-        // Log transaction
         await supabase.from("transactions").insert({
-          user_id: userId,
-          type: "COMMISSION",
-          amount: product.dailyRate,
-          status: "COMPLETED"
+          user_id: userId, type: "COMMISSION", amount: product.dailyRate, status: "COMPLETED"
         });
       }
 
       setBalance(finalBalance);
       setPurchasedIds([...purchasedIds, product.id]);
-      
-      if (product.category === "DAILY_PAYOUT") {
-        alert(`Successfully purchased ${product.name}! Day 1 payout of UGX ${product.dailyRate.toLocaleString()} has been credited.`);
-      } else if (product.category === "UNLOCK_24H") {
-        alert(`Successfully locked ${product.name}! It will unlock and start paying after 24 hours.`);
-      } else {
-        alert(`Successfully purchased ${product.name}! Your returns will be credited after ${product.cycle}.`);
-      }
+      alert(`Successfully purchased ${product.name}!`);
 
     } catch (error: any) {
       alert("Purchase failed: " + error.message);
@@ -242,4 +234,4 @@ export default function HomePage() {
       </div>
     </div>
   );
-}
+     }
