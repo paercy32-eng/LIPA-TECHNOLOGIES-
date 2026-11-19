@@ -74,14 +74,19 @@ export default function TeamPage() {
 
     const activeUserIds = activeInvs?.map(inv => inv.user_id) || [];
 
-    // 4. Merge data
+    // 4. Merge data with fallback logic
     const mergedData = referrals.map(ref => {
       const profile = profiles?.find(p => p.id === ref.referee_id);
+      
+      // LOGIC: If display_name exists use it, else use phone number, else "Unknown User"
+      const displayName = profile?.display_name || profile?.phone || "Unknown User";
+      const phone = profile?.phone || "N/A";
+
       return {
         id: ref.referee_id,
         level: ref.level,
-        name: profile?.display_name || "Unknown User",
-        phone: profile?.phone || "N/A",
+        name: displayName,
+        phone: phone,
         isActive: activeUserIds.includes(ref.referee_id)
       };
     });
@@ -233,7 +238,9 @@ export default function TeamPage() {
                   <div key={member.id} className="bg-[#0B0C10] border border-gray-800 p-4 rounded-2xl flex justify-between items-center">
                     <div>
                       <p className="font-bold text-white text-sm">{member.name}</p>
-                      <p className="text-[10px] text-gray-500">{member.phone}</p>
+                      {member.name !== member.phone && member.phone !== "N/A" && (
+                        <p className="text-[10px] text-gray-500">{member.phone}</p>
+                      )}
                     </div>
                     <span className={`text-[10px] px-2 py-1 rounded-md font-bold uppercase tracking-wider ${member.isActive ? 'bg-green-900/30 text-green-400 border border-green-900/50' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}>
                       {member.isActive ? "Active" : "Inactive"}
@@ -249,4 +256,4 @@ export default function TeamPage() {
 
     </div>
   );
-      }
+              }
