@@ -14,6 +14,12 @@ export default function TeamPage() {
   const [totalTeam, setTotalTeam] = useState(0);
   const [totalCommission, setTotalCommission] = useState(0);
 
+  // View Team State
+  const [isViewTeamOpen, setIsViewTeamOpen] = useState(false);
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
+  const [isLoadingTeam, setIsLoadingTeam] = useState(false);
+  const [activeTeamTab, setActiveTeamTab] = useState(1); // 1, 2, or 3
+
   useEffect(() => {
     const fetchTeamData = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -22,15 +28,72 @@ export default function TeamPage() {
       const { data: profile } = await supabase.from("profiles").select("referral_code").eq("id", user.id).single();
       if (profile) setReferralCode(profile.referral_code);
 
+      // Count total team
       const { count: teamCount } = await supabase.from("referrals").select("*", { count: 'exact', head: true }).eq("referrer_id", user.id);
       setTotalTeam(teamCount || 0);
 
+      // Calculate total commission
       const { data: commissions } = await supabase.from("transactions").select("amount").eq("user_id", user.id).eq("type", "COMMISSION");
       const totalComm = commissions?.reduce((sum, tx) => sum + Number(tx.amount), 0) || 0;
       setTotalCommission(totalComm);
     };
     fetchTeamData();
   }, []);
+
+  const fetchTeamMembers = async () => {
+    setIsLoadingTeam(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    // 1. Fetch all referrals for this user
+    const { data: referrals } = await supabase
+      .from("referrals")
+      .select("level, referee_id")
+      .eq("referrer_id", user.id);
+
+    if (!referrals || referrals.length === 0) {
+      setTeamMembers([]);
+      setIsLoadingTeam(false);
+      return;
+    }
+
+    const refereeIds = referrals.map(r => r.referee_id);
+
+    // 2. Fetch profiles for these referees
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, display_name, phone")
+      .in("id", refereeIds);
+
+    // 3. Fetch active investments for these referees to determine "Active" status
+    const { data: activeInvs } = await supabase
+      .from("investments")
+      .select("user_id")
+      .in("user_id", refereeIds)
+      .eq("status", "ACTIVE");
+
+    const activeUserIds = activeInvs?.map(inv => inv.user_id) || [];
+
+    // 4. Merge data
+    const mergedData = referrals.map(ref => {
+      const profile = profiles?.find(p => p.id === ref.referee_id);
+      return {
+        id: ref.referee_id,
+        level: ref.level,
+        name: profile?.display_name || "Unknown User",
+        phone: profile?.phone || "N/A",
+        isActive: activeUserIds.includes(ref.referee_id)
+      };
+    });
+
+    setTeamMembers(mergedData);
+    setIsLoadingTeam(false);
+  };
+
+  const handleOpenViewTeam = () => {
+    setIsViewTeamOpen(true);
+    fetchTeamMembers();
+  };
 
   const referralLink = `https://lipa-technologies.vercel.app/auth?ref=${referralCode}`;
 
@@ -45,6 +108,8 @@ export default function TeamPage() {
     }
   };
 
+  const filteredMembers = teamMembers.filter(m => m.level === activeTeamTab);
+
   return (
     <div className="min-h-screen bg-[#0B0C10] text-white p-5 pb-24">
       <div className="mb-8 pt-4">
@@ -53,7 +118,7 @@ export default function TeamPage() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 gap-4 mb-6">
+      <div className="grid grid-cols-2 gap-4 mb-4">
         <div className="bg-[#12141D] border border-gray-800 p-5 rounded-3xl shadow-lg flex flex-col items-center justify-center">
           <div className="text-[#00D2FF] mb-2 bg-[#00D2FF]/10 p-2 rounded-xl">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
@@ -69,6 +134,15 @@ export default function TeamPage() {
           <h3 className="text-3xl font-black text-[#7B61FF]">{totalCommission.toLocaleString()}</h3>
         </div>
       </div>
+
+      {/* View Team Button */}
+      <button 
+        onClick={handleOpenViewTeam}
+        className="w-full bg-[#1A1D27] border border-gray-700 hover:bg-gray-800 text-white font-bold py-3.5 rounded-2xl transition flex items-center justify-center gap-2 mb-6"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00D2FF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+        View My Referrals
+      </button>
 
       {/* Referral Link Card */}
       <div className="bg-[#12141D] border border-[#7B61FF]/30 p-6 rounded-3xl mb-6 shadow-[0_0_20px_rgba(123,97,255,0.1)] relative overflow-hidden">
@@ -122,6 +196,57 @@ export default function TeamPage() {
           <span className="font-black text-green-400 bg-green-500/10 px-3 py-1 rounded-lg">1%</span>
         </div>
       </div>
+
+      {/* --- VIEW TEAM MODAL --- */}
+      {isViewTeamOpen && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#12141D] border border-gray-800 w-full max-w-md rounded-3xl p-6 shadow-2xl h-[80vh] flex flex-col">
+            
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-bold text-white">My Referrals</h3>
+              <button onClick={() => setIsViewTeamOpen(false)} className="text-gray-400 hover:text-white">✕</button>
+            </div>
+
+            {/* Level Tabs */}
+            <div className="flex space-x-2 mb-4">
+              {[1, 2, 3].map((level) => (
+                <button
+                  key={level}
+                  onClick={() => setActiveTeamTab(level)}
+                  className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${
+                    activeTeamTab === level ? "bg-[#7B61FF] text-white" : "bg-[#0B0C10] text-gray-400 border border-gray-800"
+                  }`}
+                >
+                  Level {level}
+                </button>
+              ))}
+            </div>
+
+            {/* Team List */}
+            <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+              {isLoadingTeam ? (
+                <div className="text-center text-gray-500 mt-10">Loading referrals...</div>
+              ) : filteredMembers.length === 0 ? (
+                <div className="text-center text-gray-500 mt-10 text-sm">No referrals at Level {activeTeamTab} yet.</div>
+              ) : (
+                filteredMembers.map((member) => (
+                  <div key={member.id} className="bg-[#0B0C10] border border-gray-800 p-4 rounded-2xl flex justify-between items-center">
+                    <div>
+                      <p className="font-bold text-white text-sm">{member.name}</p>
+                      <p className="text-[10px] text-gray-500">{member.phone}</p>
+                    </div>
+                    <span className={`text-[10px] px-2 py-1 rounded-md font-bold uppercase tracking-wider ${member.isActive ? 'bg-green-900/30 text-green-400 border border-green-900/50' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}>
+                      {member.isActive ? "Active" : "Inactive"}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+            
+          </div>
+        </div>
+      )}
+
     </div>
   );
-}
+      }
