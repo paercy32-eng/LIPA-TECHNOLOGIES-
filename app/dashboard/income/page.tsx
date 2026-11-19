@@ -8,41 +8,41 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 const productInfo: Record<string, any> = {
-  "p1": { name: "LipaVault", category: "LOCK", cycleDays: 3, price: 10000, dailyRate: 0, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400&auto=format&fit=crop" },
-  "p2": { name: "LipaCore", category: "LOCK", cycleDays: 3, price: 5000, dailyRate: 0, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400&auto=format&fit=crop" },
-  "p3": { name: "LipaShield", category: "LOCK", cycleDays: 2, price: 50000, dailyRate: 0, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400&auto=format&fit=crop" },
-  "p4": { name: "LipaControl", category: "LOCK", cycleDays: 6, price: 100000, dailyRate: 0, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400&auto=format&fit=crop" },
-  "p5": { name: "LipaCredit", category: "LOCK", cycleDays: 5, price: 150000, dailyRate: 0, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400&auto=format&fit=crop" },
-  "p6": { name: "LipaDirect", category: "LOCK", cycleDays: 2, price: 200000, dailyRate: 0, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400&auto=format&fit=crop" },
-  "p7": { name: "LipaOmni", category: "LOCK", cycleDays: 2, price: 75000, dailyRate: 0, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400&auto=format&fit=crop" },
-  "p8": { name: "LipaAdmin", category: "LOCK", cycleDays: 5, price: 20000, dailyRate: 0, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400&auto=format&fit=crop" },
-  "p9": { name: "LipaLedger", category: "LOCK", cycleDays: 3, price: 50000, dailyRate: 0, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400&auto=format&fit=crop" },
-  "p10": { name: "LipaBridge", category: "LOCK", cycleDays: 4, price: 180000, dailyRate: 0, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400&auto=format&fit=crop" },
-  "p11": { name: "LipaConnect", category: "LOCK", cycleDays: 3, price: 250000, dailyRate: 0, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400&auto=format&fit=crop" },
-  "p12": { name: "LipaSDK", category: "LOCK", cycleDays: 2, price: 500000, dailyRate: 0, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400&auto=format&fit=crop" },
-  "p13": { name: "LipaGateway", category: "LOCK", cycleDays: 2, price: 800000, dailyRate: 0, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400&auto=format&fit=crop" },
-  "p14": { name: "LipaX", category: "LOCK", cycleDays: 2, price: 1000000, dailyRate: 0, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400&auto=format&fit=crop" },
-  "p15": { name: "LipaDashboard", category: "LOCK", cycleDays: 2, price: 2000000, dailyRate: 0, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400&auto=format&fit=crop" },
-  "p16": { name: "LipaFlow", category: "DAILY_PAYOUT", cycleDays: 5, price: 5000, dailyRate: 2000, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400&auto=format&fit=crop" },
-  "p17": { name: "LipaPulse", category: "DAILY_PAYOUT", cycleDays: 3, price: 10000, dailyRate: 5000, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400&auto=format&fit=crop" },
-  "p18": { name: "LipaRewards", category: "DAILY_PAYOUT", cycleDays: 10, price: 25000, dailyRate: 5000, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400&auto=format&fit=crop" },
-  "p19": { name: "LipaSub", category: "DAILY_PAYOUT", cycleDays: 8, price: 50000, dailyRate: 15000, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400&auto=format&fit=crop" },
-  "p20": { name: "LipaSpend", category: "DAILY_PAYOUT", cycleDays: 9, price: 100000, dailyRate: 25000, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400&auto=format&fit=crop" },
-  "p21": { name: "LipaSplit", category: "DAILY_PAYOUT", cycleDays: 8, price: 150000, dailyRate: 40000, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400&auto=format&fit=crop" },
-  "p22": { name: "LipaPaylink", category: "DAILY_PAYOUT", cycleDays: 9, price: 250000, dailyRate: 70000, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400&auto=format&fit=crop" },
-  "p23": { name: "LipaInvoice", category: "DAILY_PAYOUT", cycleDays: 13, price: 500000, dailyRate: 150000, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400&auto=format&fit=crop" },
-  "p24": { name: "LipaInsights", category: "DAILY_PAYOUT", cycleDays: 10, price: 1000000, dailyRate: 300000, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400&auto=format&fit=crop" },
-  "p25": { name: "LipaVirtual", category: "DAILY_PAYOUT", cycleDays: 8, price: 2000000, dailyRate: 700000, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400&auto=format&fit=crop" },
-  "p26": { name: "LipaTap", category: "UNLOCK_24H", cycleDays: 4, price: 5000, dailyRate: 2500, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400&auto=format&fit=crop" },
-  "p27": { name: "LipaScan", category: "UNLOCK_24H", cycleDays: 4, price: 10000, dailyRate: 4500, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400&auto=format&fit=crop" },
-  "p28": { name: "LipaGo", category: "UNLOCK_24H", cycleDays: 4, price: 25000, dailyRate: 10000, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400&auto=format&fit=crop" },
-  "p29": { name: "LipaPocket", category: "UNLOCK_24H", cycleDays: 4, price: 50000, dailyRate: 20000, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400&auto=format&fit=crop" },
-  "p30": { name: "LipaWallet", category: "UNLOCK_24H", cycleDays: 4, price: 75000, dailyRate: 30000, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400&auto=format&fit=crop" },
-  "p31": { name: "LipaP2P", category: "UNLOCK_24H", cycleDays: 4, price: 100000, dailyRate: 40000, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400&auto=format&fit=crop" },
-  "p32": { name: "LipaSoftPOS", category: "UNLOCK_24H", cycleDays: 4, price: 150000, dailyRate: 70000, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400&auto=format&fit=crop" },
-  "p33": { name: "LipaTerminal", category: "UNLOCK_24H", cycleDays: 4, price: 250000, dailyRate: 100000, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400&auto=format&fit=crop" },
-  "p34": { name: "LipaCheckout", category: "UNLOCK_24H", cycleDays: 4, price: 500000, dailyRate: 250000, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400&auto=format&fit=crop" },
-  "p35": { name: "LipaRegister", category: "UNLOCK_24H", cycleDays: 4, price: 1000000, dailyRate: 500000, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400&auto=format&fit=crop" }
+  "p1": { name: "LipaVault", category: "LOCK", cycleDays: 3, price: 10000, dailyRate: 0, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400" },
+  "p2": { name: "LipaCore", category: "LOCK", cycleDays: 3, price: 5000, dailyRate: 0, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400" },
+  "p3": { name: "LipaShield", category: "LOCK", cycleDays: 2, price: 50000, dailyRate: 0, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400" },
+  "p4": { name: "LipaControl", category: "LOCK", cycleDays: 6, price: 100000, dailyRate: 0, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400" },
+  "p5": { name: "LipaCredit", category: "LOCK", cycleDays: 5, price: 150000, dailyRate: 0, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400" },
+  "p6": { name: "LipaDirect", category: "LOCK", cycleDays: 2, price: 200000, dailyRate: 0, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400" },
+  "p7": { name: "LipaOmni", category: "LOCK", cycleDays: 2, price: 75000, dailyRate: 0, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400" },
+  "p8": { name: "LipaAdmin", category: "LOCK", cycleDays: 5, price: 20000, dailyRate: 0, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400" },
+  "p9": { name: "LipaLedger", category: "LOCK", cycleDays: 3, price: 50000, dailyRate: 0, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400" },
+  "p10": { name: "LipaBridge", category: "LOCK", cycleDays: 4, price: 180000, dailyRate: 0, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400" },
+  "p11": { name: "LipaConnect", category: "LOCK", cycleDays: 3, price: 250000, dailyRate: 0, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400" },
+  "p12": { name: "LipaSDK", category: "LOCK", cycleDays: 2, price: 500000, dailyRate: 0, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400" },
+  "p13": { name: "LipaGateway", category: "LOCK", cycleDays: 2, price: 800000, dailyRate: 0, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400" },
+  "p14": { name: "LipaX", category: "LOCK", cycleDays: 2, price: 1000000, dailyRate: 0, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400" },
+  "p15": { name: "LipaDashboard", category: "LOCK", cycleDays: 2, price: 2000000, dailyRate: 0, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400" },
+  "p16": { name: "LipaFlow", category: "DAILY_PAYOUT", cycleDays: 5, price: 5000, dailyRate: 2000, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400" },
+  "p17": { name: "LipaPulse", category: "DAILY_PAYOUT", cycleDays: 3, price: 10000, dailyRate: 5000, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400" },
+  "p18": { name: "LipaRewards", category: "DAILY_PAYOUT", cycleDays: 10, price: 25000, dailyRate: 5000, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400" },
+  "p19": { name: "LipaSub", category: "DAILY_PAYOUT", cycleDays: 8, price: 50000, dailyRate: 15000, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400" },
+  "p20": { name: "LipaSpend", category: "DAILY_PAYOUT", cycleDays: 9, price: 100000, dailyRate: 25000, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400" },
+  "p21": { name: "LipaSplit", category: "DAILY_PAYOUT", cycleDays: 8, price: 150000, dailyRate: 40000, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400" },
+  "p22": { name: "LipaPaylink", category: "DAILY_PAYOUT", cycleDays: 9, price: 250000, dailyRate: 70000, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400" },
+  "p23": { name: "LipaInvoice", category: "DAILY_PAYOUT", cycleDays: 13, price: 500000, dailyRate: 150000, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400" },
+  "p24": { name: "LipaInsights", category: "DAILY_PAYOUT", cycleDays: 10, price: 1000000, dailyRate: 300000, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400" },
+  "p25": { name: "LipaVirtual", category: "DAILY_PAYOUT", cycleDays: 8, price: 2000000, dailyRate: 700000, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400" },
+  "p26": { name: "LipaTap", category: "UNLOCK_24H", cycleDays: 4, price: 5000, dailyRate: 2500, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400" },
+  "p27": { name: "LipaScan", category: "UNLOCK_24H", cycleDays: 4, price: 10000, dailyRate: 4500, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400" },
+  "p28": { name: "LipaGo", category: "UNLOCK_24H", cycleDays: 4, price: 25000, dailyRate: 10000, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400" },
+  "p29": { name: "LipaPocket", category: "UNLOCK_24H", cycleDays: 4, price: 50000, dailyRate: 20000, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400" },
+  "p30": { name: "LipaWallet", category: "UNLOCK_24H", cycleDays: 4, price: 75000, dailyRate: 30000, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400" },
+  "p31": { name: "LipaP2P", category: "UNLOCK_24H", cycleDays: 4, price: 100000, dailyRate: 40000, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400" },
+  "p32": { name: "LipaSoftPOS", category: "UNLOCK_24H", cycleDays: 4, price: 150000, dailyRate: 70000, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400" },
+  "p33": { name: "LipaTerminal", category: "UNLOCK_24H", cycleDays: 4, price: 250000, dailyRate: 100000, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400" },
+  "p34": { name: "LipaCheckout", category: "UNLOCK_24H", cycleDays: 4, price: 500000, dailyRate: 250000, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400" },
+  "p35": { name: "LipaRegister", category: "UNLOCK_24H", cycleDays: 4, price: 1000000, dailyRate: 500000, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400" }
 };
 
 const getCalendarDaysElapsed = (createdAtStr: string) => {
@@ -115,24 +115,39 @@ export default function IncomePage() {
 
             if (daysElapsed > (inv.payouts_made || 0)) {
               const cyclesToPay = daysElapsed - (inv.payouts_made || 0);
+              
               if (inv.payouts_made + cyclesToPay > info.cycleDays) {
                  const remaining = info.cycleDays - (inv.payouts_made || 0);
                  if(remaining > 0) totalCreditToAdd += (remaining * info.dailyRate);
-                 await supabase.from("investments").update({ payouts_made: info.cycleDays, status: "COMPLETED" }).eq("id", inv.id);
-                 updatedInvs[i].payouts_made = info.cycleDays;
-                 updatedInvs[i].status = "COMPLETED";
+                 
+                 const { error } = await supabase.from("investments").update({ payouts_made: info.cycleDays, status: "COMPLETED" }).eq("id", inv.id);
+                 if (!error) {
+                   updatedInvs[i].payouts_made = info.cycleDays;
+                   updatedInvs[i].status = "COMPLETED";
+                 } else {
+                   console.error("Failed to update investment:", error);
+                 }
               } else {
                  totalCreditToAdd += (cyclesToPay * info.dailyRate);
-                 await supabase.from("investments").update({ payouts_made: daysElapsed }).eq("id", inv.id);
-                 updatedInvs[i].payouts_made = daysElapsed;
+                 
+                 const { error } = await supabase.from("investments").update({ payouts_made: daysElapsed }).eq("id", inv.id);
+                 if (!error) {
+                   updatedInvs[i].payouts_made = daysElapsed;
+                 } else {
+                   console.error("Failed to update investment:", error);
+                 }
               }
             }
           } else {
             const calendarDays = getCalendarDaysElapsed(inv.created_at);
             if (calendarDays >= info.cycleDays && inv.status !== "COMPLETED") {
-              await supabase.from("investments").update({ status: "COMPLETED" }).eq("id", inv.id);
-              updatedInvs[i].status = "COMPLETED";
-              totalCreditToAdd += Number(inv.expected_return);
+              const { error } = await supabase.from("investments").update({ status: "COMPLETED" }).eq("id", inv.id);
+              if (!error) {
+                updatedInvs[i].status = "COMPLETED";
+                totalCreditToAdd += Number(inv.expected_return);
+              } else {
+                console.error("Failed to update investment:", error);
+              }
             }
           }
         }
@@ -142,7 +157,6 @@ export default function IncomePage() {
           if (bal) {
             const newBalance = Number(bal.available) + totalCreditToAdd;
             await supabase.from("balances").update({ available: newBalance }).eq("user_id", user.id);
-            // FIXED: Change type to DAILY_EARNING instead of COMMISSION
             await supabase.from("transactions").insert({
               user_id: user.id, type: "DAILY_EARNING", amount: totalCreditToAdd, status: "COMPLETED"
             });
@@ -263,4 +277,4 @@ export default function IncomePage() {
       )}
     </div>
   );
-    }
+                           }
