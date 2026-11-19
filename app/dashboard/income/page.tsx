@@ -106,47 +106,47 @@ export default function IncomePage() {
         for (let i = 0; i < updatedInvs.length; i++) {
           const inv = updatedInvs[i];
           const info = productInfo[inv.product_id];
-          if (!info) continue;
+          if (!info || inv.status === "COMPLETED") continue;
+
+          const startTime = new Date(inv.created_at).getTime();
+          const hoursElapsed = (Date.now() - startTime) / (1000 * 60 * 60);
+          const daysElapsed = Math.floor(hoursElapsed / 24);
+          const currentPayouts = Number(inv.payouts_made) || 0;
 
           if (info.category !== "LOCK") {
-            const startTime = new Date(inv.created_at).getTime();
-            const hoursElapsed = (Date.now() - startTime) / (1000 * 60 * 60);
-            const daysElapsed = Math.floor(hoursElapsed / 24);
-
-            if (daysElapsed > (inv.payouts_made || 0)) {
-              const cyclesToPay = daysElapsed - (inv.payouts_made || 0);
+            if (daysElapsed > currentPayouts) {
+              const cyclesToPay = daysElapsed - currentPayouts;
+              let amountToAdd = 0;
               
-              if (inv.payouts_made + cyclesToPay > info.cycleDays) {
-                 const remaining = info.cycleDays - (inv.payouts_made || 0);
-                 if(remaining > 0) totalCreditToAdd += (remaining * info.dailyRate);
+              if (currentPayouts + cyclesToPay > info.cycleDays) {
+                 const remaining = info.cycleDays - currentPayouts;
+                 if(remaining > 0) amountToAdd = (remaining * info.dailyRate);
                  
+                 // Try to update DB first
                  const { error } = await supabase.from("investments").update({ payouts_made: info.cycleDays, status: "COMPLETED" }).eq("id", inv.id);
                  if (!error) {
+                   totalCreditToAdd += amountToAdd;
                    updatedInvs[i].payouts_made = info.cycleDays;
                    updatedInvs[i].status = "COMPLETED";
-                 } else {
-                   console.error("Failed to update investment:", error);
                  }
               } else {
-                 totalCreditToAdd += (cyclesToPay * info.dailyRate);
+                 amountToAdd = (cyclesToPay * info.dailyRate);
                  
+                 // Try to update DB first
                  const { error } = await supabase.from("investments").update({ payouts_made: daysElapsed }).eq("id", inv.id);
                  if (!error) {
+                   totalCreditToAdd += amountToAdd;
                    updatedInvs[i].payouts_made = daysElapsed;
-                 } else {
-                   console.error("Failed to update investment:", error);
                  }
               }
             }
           } else {
             const calendarDays = getCalendarDaysElapsed(inv.created_at);
-            if (calendarDays >= info.cycleDays && inv.status !== "COMPLETED") {
+            if (calendarDays >= info.cycleDays) {
               const { error } = await supabase.from("investments").update({ status: "COMPLETED" }).eq("id", inv.id);
               if (!error) {
                 updatedInvs[i].status = "COMPLETED";
                 totalCreditToAdd += Number(inv.expected_return);
-              } else {
-                console.error("Failed to update investment:", error);
               }
             }
           }
@@ -199,14 +199,17 @@ export default function IncomePage() {
             const isLockedPlan = info.category === "LOCK";
             const startTime = new Date(inv.created_at).getTime();
             const daysElapsed = isLockedPlan ? getCalendarDaysElapsed(inv.created_at) : Math.floor((Date.now() - startTime) / (1000 * 60 * 60 * 24));
-            const nextPayoutTime = isLockedPlan ? getNextMidnightEAT() : startTime + ((inv.payouts_made + 1) * 24 * 60 * 60 * 1000);
+            const nextPayoutTime = isLockedPlan ? getNextMidnightEAT() : startTime + (((inv.payouts_made || 0) + 1) * 24 * 60 * 60 * 1000);
             const totalExpected = Number(inv.expected_return);
             const initialAmount = Number(inv.amount) > 0 ? Number(inv.amount) : info.price;
-            const totalClaimed = isLockedPlan ? 0 : (inv.payouts_made * info.dailyRate);
+            
+            const currentPayouts = Number(inv.payouts_made) || 0;
+            const totalClaimed = isLockedPlan ? 0 : (currentPayouts * info.dailyRate);
+            
             const progressPercent = Math.min((daysElapsed / info.cycleDays) * 100, 100);
             const daysRemaining = Math.max(info.cycleDays - daysElapsed, 0);
             const isCompleted = inv.status === "COMPLETED" || daysElapsed >= info.cycleDays;
-            const accruedProfit = isLockedPlan ? (daysElapsed / info.cycleDays) * (totalExpected - initialAmount) : (inv.payouts_made * info.dailyRate);
+            const accruedProfit = isLockedPlan ? (daysElapsed / info.cycleDays) * (totalExpected - initialAmount) : (currentPayouts * info.dailyRate);
 
             return (
               <div key={inv.id} className="bg-[#12141D] border border-gray-800 rounded-3xl p-5 shadow-lg relative overflow-hidden flex flex-col">
@@ -236,13 +239,13 @@ export default function IncomePage() {
                   </div>
                   <div>
                     <p className="text-[10px] text-gray-500 font-medium mb-0.5">Total Claimed</p>
-                    <p className="text-sm font-bold text-green-400">UGX {isCompleted ? totalExpected.toLocaleString() : (isLockedPlan ? 0 : (inv.payouts_made * info.dailyRate).toLocaleString())}</p>
+                    <p className="text-sm font-bold text-green-400">UGX {isCompleted ? totalExpected.toLocaleString() : totalClaimed.toLocaleString()}</p>
                   </div>
                   <div>
                     <p className="text-[10px] text-gray-500 font-medium mb-0.5">Cycle Progress</p>
                     <p className="text-sm font-bold text-white flex items-center gap-1">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-                      {daysElapsed} / {info.cycleDays} Days
+                      {Math.min(daysElapsed, info.cycleDays)} / {info.cycleDays} Days
                     </p>
                   </div>
                 </div>
@@ -277,4 +280,4 @@ export default function IncomePage() {
       )}
     </div>
   );
-                           }
+                }
