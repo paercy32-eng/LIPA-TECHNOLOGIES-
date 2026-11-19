@@ -34,7 +34,7 @@ export default function HistoryPage() {
   const deposits = transactions.filter(t => t.type === "DEPOSIT");
   const withdrawals = transactions.filter(t => t.type === "WITHDRAWAL");
   const commissions = transactions.filter(t => t.type === "COMMISSION");
-  const dailyEarnings = transactions.filter(t => t.type === "DAILY_EARNING"); // NEW
+  const dailyEarnings = transactions.filter(t => t.type === "DAILY_EARNING");
 
   const getFilteredData = () => {
     if (activeTab === "DEPOSITS") return deposits;
@@ -128,4 +128,4 @@ export default function HistoryPage() {
       )}
     </div>
   );
-  }
+}
