@@ -34,11 +34,14 @@ export default function HistoryPage() {
   const deposits = transactions.filter(t => t.type === "DEPOSIT");
   const withdrawals = transactions.filter(t => t.type === "WITHDRAWAL");
   const commissions = transactions.filter(t => t.type === "COMMISSION");
+  const dailyEarnings = transactions.filter(t => t.type === "DAILY_EARNING"); // NEW
 
   const getFilteredData = () => {
     if (activeTab === "DEPOSITS") return deposits;
     if (activeTab === "WITHDRAWALS") return withdrawals;
-    return commissions;
+    if (activeTab === "COMMISSIONS") return commissions;
+    if (activeTab === "DAILY_EARNINGS") return dailyEarnings;
+    return [];
   };
 
   const getStatusDisplay = (status: string, type: string) => {
@@ -52,6 +55,15 @@ export default function HistoryPage() {
     return { text: status, color: "text-gray-400 bg-gray-900/30 border-gray-800" };
   };
 
+  const getTransactionLabel = (type: string) => {
+    if (type === "DEPOSIT") return "Deposit";
+    if (type === "WITHDRAWAL") return "Withdrawal";
+    if (type === "COMMISSION") return "Referral Commission";
+    if (type === "DAILY_EARNING") return "Daily Earning";
+    if (type === "ADMIN_ADJUSTMENT") return "Admin Adjustment";
+    return type;
+  };
+
   return (
     <div className="min-h-screen bg-[#0B0C10] text-white p-5 pb-24">
       
@@ -63,17 +75,17 @@ export default function HistoryPage() {
 
       {/* Tabs */}
       <div className="flex space-x-2 mb-6 overflow-x-auto no-scrollbar">
-        {["DEPOSITS", "WITHDRAWALS", "COMMISSIONS"].map((tab) => (
+        {["DEPOSITS", "WITHDRAWALS", "DAILY_EARNINGS", "COMMISSIONS"].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-5 py-2.5 rounded-xl font-bold text-xs transition-all ${
+            className={`px-5 py-2.5 whitespace-nowrap rounded-xl font-bold text-xs transition-all ${
               activeTab === tab 
                 ? "bg-[#7B61FF] text-white shadow-[0_5px_15px_rgba(123,97,255,0.4)]" 
                 : "bg-[#12141D] text-gray-400 border border-gray-800 hover:bg-gray-800"
             }`}
           >
-            {tab}
+            {tab.replace('_', ' ')}
           </button>
         ))}
       </div>
@@ -85,7 +97,7 @@ export default function HistoryPage() {
           <div className="w-16 h-16 bg-[#7B61FF]/10 rounded-full flex items-center justify-center mx-auto mb-4 text-[#7B61FF]">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
           </div>
-          <p className="text-gray-400 text-sm font-medium">No {activeTab.toLowerCase()} found.</p>
+          <p className="text-gray-400 text-sm font-medium">No {activeTab.toLowerCase().replace('_', ' ')} found.</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -95,7 +107,7 @@ export default function HistoryPage() {
               <div key={tx.id} className="bg-[#12141D] border border-gray-800 p-4 rounded-2xl flex justify-between items-center shadow-lg">
                 <div>
                   <p className="font-bold text-white text-sm capitalize">
-                    {tx.type.toLowerCase()}
+                    {getTransactionLabel(tx.type)}
                   </p>
                   <p className="text-[10px] text-gray-500 mt-1 font-medium">
                     {new Date(tx.created_at).toLocaleString()}
@@ -116,4 +128,4 @@ export default function HistoryPage() {
       )}
     </div>
   );
-}
+  }
