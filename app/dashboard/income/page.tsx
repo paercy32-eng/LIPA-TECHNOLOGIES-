@@ -8,43 +8,44 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 const productInfo: Record<string, any> = {
-  "p1": { name: "LipaVault", category: "LOCK", cycleDays: 3, price: 10000, dailyRate: 0, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400" },
-  "p2": { name: "LipaCore", category: "LOCK", cycleDays: 3, price: 5000, dailyRate: 0, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400" },
-  "p3": { name: "LipaShield", category: "LOCK", cycleDays: 2, price: 50000, dailyRate: 0, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400" },
-  "p4": { name: "LipaControl", category: "LOCK", cycleDays: 6, price: 100000, dailyRate: 0, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400" },
-  "p5": { name: "LipaCredit", category: "LOCK", cycleDays: 5, price: 150000, dailyRate: 0, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400" },
-  "p6": { name: "LipaDirect", category: "LOCK", cycleDays: 2, price: 200000, dailyRate: 0, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400" },
-  "p7": { name: "LipaOmni", category: "LOCK", cycleDays: 2, price: 75000, dailyRate: 0, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400" },
-  "p8": { name: "LipaAdmin", category: "LOCK", cycleDays: 5, price: 20000, dailyRate: 0, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400" },
-  "p9": { name: "LipaLedger", category: "LOCK", cycleDays: 3, price: 50000, dailyRate: 0, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400" },
-  "p10": { name: "LipaBridge", category: "LOCK", cycleDays: 4, price: 180000, dailyRate: 0, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400" },
-  "p11": { name: "LipaConnect", category: "LOCK", cycleDays: 3, price: 250000, dailyRate: 0, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400" },
-  "p12": { name: "LipaSDK", category: "LOCK", cycleDays: 2, price: 500000, dailyRate: 0, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400" },
-  "p13": { name: "LipaGateway", category: "LOCK", cycleDays: 2, price: 800000, dailyRate: 0, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400" },
-  "p14": { name: "LipaX", category: "LOCK", cycleDays: 2, price: 1000000, dailyRate: 0, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400" },
-  "p15": { name: "LipaDashboard", category: "LOCK", cycleDays: 2, price: 2000000, dailyRate: 0, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400" },
-  "p16": { name: "LipaFlow", category: "DAILY_PAYOUT", cycleDays: 5, price: 5000, dailyRate: 2000, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400" },
-  "p17": { name: "LipaPulse", category: "DAILY_PAYOUT", cycleDays: 3, price: 10000, dailyRate: 5000, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400" },
-  "p18": { name: "LipaRewards", category: "DAILY_PAYOUT", cycleDays: 10, price: 25000, dailyRate: 5000, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400" },
-  "p19": { name: "LipaSub", category: "DAILY_PAYOUT", cycleDays: 8, price: 50000, dailyRate: 15000, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400" },
-  "p20": { name: "LipaSpend", category: "DAILY_PAYOUT", cycleDays: 9, price: 100000, dailyRate: 25000, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400" },
-  "p21": { name: "LipaSplit", category: "DAILY_PAYOUT", cycleDays: 8, price: 150000, dailyRate: 40000, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400" },
-  "p22": { name: "LipaPaylink", category: "DAILY_PAYOUT", cycleDays: 9, price: 250000, dailyRate: 70000, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400" },
-  "p23": { name: "LipaInvoice", category: "DAILY_PAYOUT", cycleDays: 13, price: 500000, dailyRate: 150000, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400" },
-  "p24": { name: "LipaInsights", category: "DAILY_PAYOUT", cycleDays: 10, price: 1000000, dailyRate: 300000, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400" },
-  "p25": { name: "LipaVirtual", category: "DAILY_PAYOUT", cycleDays: 8, price: 2000000, dailyRate: 700000, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400" },
-  "p26": { name: "LipaTap", category: "UNLOCK_24H", cycleDays: 4, price: 5000, dailyRate: 2500, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400" },
-  "p27": { name: "LipaScan", category: "UNLOCK_24H", cycleDays: 4, price: 10000, dailyRate: 4500, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400" },
-  "p28": { name: "LipaGo", category: "UNLOCK_24H", cycleDays: 4, price: 25000, dailyRate: 10000, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400" },
-  "p29": { name: "LipaPocket", category: "UNLOCK_24H", cycleDays: 4, price: 50000, dailyRate: 20000, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400" },
-  "p30": { name: "LipaWallet", category: "UNLOCK_24H", cycleDays: 4, price: 75000, dailyRate: 30000, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400" },
-  "p31": { name: "LipaP2P", category: "UNLOCK_24H", cycleDays: 4, price: 100000, dailyRate: 40000, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400" },
-  "p32": { name: "LipaSoftPOS", category: "UNLOCK_24H", cycleDays: 4, price: 150000, dailyRate: 70000, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400" },
-  "p33": { name: "LipaTerminal", category: "UNLOCK_24H", cycleDays: 4, price: 250000, dailyRate: 100000, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400" },
-  "p34": { name: "LipaCheckout", category: "UNLOCK_24H", cycleDays: 4, price: 500000, dailyRate: 250000, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400" },
-  "p35": { name: "LipaRegister", category: "UNLOCK_24H", cycleDays: 4, price: 1000000, dailyRate: 500000, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400" }
+  "p1": { name: "LipaVault", category: "LOCK", cycleDays: 3, price: 10000, dailyRate: 0, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400&auto=format&fit=crop" },
+  "p2": { name: "LipaCore", category: "LOCK", cycleDays: 3, price: 5000, dailyRate: 0, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400&auto=format&fit=crop" },
+  "p3": { name: "LipaShield", category: "LOCK", cycleDays: 2, price: 50000, dailyRate: 0, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400&auto=format&fit=crop" },
+  "p4": { name: "LipaControl", category: "LOCK", cycleDays: 6, price: 100000, dailyRate: 0, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400&auto=format&fit=crop" },
+  "p5": { name: "LipaCredit", category: "LOCK", cycleDays: 5, price: 150000, dailyRate: 0, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400&auto=format&fit=crop" },
+  "p6": { name: "LipaDirect", category: "LOCK", cycleDays: 2, price: 200000, dailyRate: 0, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400&auto=format&fit=crop" },
+  "p7": { name: "LipaOmni", category: "LOCK", cycleDays: 2, price: 75000, dailyRate: 0, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400&auto=format&fit=crop" },
+  "p8": { name: "LipaAdmin", category: "LOCK", cycleDays: 5, price: 20000, dailyRate: 0, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400&auto=format&fit=crop" },
+  "p9": { name: "LipaLedger", category: "LOCK", cycleDays: 3, price: 50000, dailyRate: 0, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400&auto=format&fit=crop" },
+  "p10": { name: "LipaBridge", category: "LOCK", cycleDays: 4, price: 180000, dailyRate: 0, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400&auto=format&fit=crop" },
+  "p11": { name: "LipaConnect", category: "LOCK", cycleDays: 3, price: 250000, dailyRate: 0, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400&auto=format&fit=crop" },
+  "p12": { name: "LipaSDK", category: "LOCK", cycleDays: 2, price: 500000, dailyRate: 0, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400&auto=format&fit=crop" },
+  "p13": { name: "LipaGateway", category: "LOCK", cycleDays: 2, price: 800000, dailyRate: 0, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400&auto=format&fit=crop" },
+  "p14": { name: "LipaX", category: "LOCK", cycleDays: 2, price: 1000000, dailyRate: 0, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400&auto=format&fit=crop" },
+  "p15": { name: "LipaDashboard", category: "LOCK", cycleDays: 2, price: 2000000, dailyRate: 0, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400&auto=format&fit=crop" },
+  "p16": { name: "LipaFlow", category: "DAILY_PAYOUT", cycleDays: 5, price: 5000, dailyRate: 2000, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400&auto=format&fit=crop" },
+  "p17": { name: "LipaPulse", category: "DAILY_PAYOUT", cycleDays: 3, price: 10000, dailyRate: 5000, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400&auto=format&fit=crop" },
+  "p18": { name: "LipaRewards", category: "DAILY_PAYOUT", cycleDays: 10, price: 25000, dailyRate: 5000, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400&auto=format&fit=crop" },
+  "p19": { name: "LipaSub", category: "DAILY_PAYOUT", cycleDays: 8, price: 50000, dailyRate: 15000, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400&auto=format&fit=crop" },
+  "p20": { name: "LipaSpend", category: "DAILY_PAYOUT", cycleDays: 9, price: 100000, dailyRate: 25000, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400&auto=format&fit=crop" },
+  "p21": { name: "LipaSplit", category: "DAILY_PAYOUT", cycleDays: 8, price: 150000, dailyRate: 40000, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400&auto=format&fit=crop" },
+  "p22": { name: "LipaPaylink", category: "DAILY_PAYOUT", cycleDays: 9, price: 250000, dailyRate: 70000, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400&auto=format&fit=crop" },
+  "p23": { name: "LipaInvoice", category: "DAILY_PAYOUT", cycleDays: 13, price: 500000, dailyRate: 150000, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400&auto=format&fit=crop" },
+  "p24": { name: "LipaInsights", category: "DAILY_PAYOUT", cycleDays: 10, price: 1000000, dailyRate: 300000, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400&auto=format&fit=crop" },
+  "p25": { name: "LipaVirtual", category: "DAILY_PAYOUT", cycleDays: 8, price: 2000000, dailyRate: 700000, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400&auto=format&fit=crop" },
+  "p26": { name: "LipaTap", category: "UNLOCK_24H", cycleDays: 4, price: 5000, dailyRate: 2500, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400&auto=format&fit=crop" },
+  "p27": { name: "LipaScan", category: "UNLOCK_24H", cycleDays: 4, price: 10000, dailyRate: 4500, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400&auto=format&fit=crop" },
+  "p28": { name: "LipaGo", category: "UNLOCK_24H", cycleDays: 4, price: 25000, dailyRate: 10000, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400&auto=format&fit=crop" },
+  "p29": { name: "LipaPocket", category: "UNLOCK_24H", cycleDays: 4, price: 50000, dailyRate: 20000, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400&auto=format&fit=crop" },
+  "p30": { name: "LipaWallet", category: "UNLOCK_24H", cycleDays: 4, price: 75000, dailyRate: 30000, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400&auto=format&fit=crop" },
+  "p31": { name: "LipaP2P", category: "UNLOCK_24H", cycleDays: 4, price: 100000, dailyRate: 40000, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400&auto=format&fit=crop" },
+  "p32": { name: "LipaSoftPOS", category: "UNLOCK_24H", cycleDays: 4, price: 150000, dailyRate: 70000, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400&auto=format&fit=crop" },
+  "p33": { name: "LipaTerminal", category: "UNLOCK_24H", cycleDays: 4, price: 250000, dailyRate: 100000, img: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=400&auto=format&fit=crop" },
+  "p34": { name: "LipaCheckout", category: "UNLOCK_24H", cycleDays: 4, price: 500000, dailyRate: 250000, img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=400&auto=format&fit=crop" },
+  "p35": { name: "LipaRegister", category: "UNLOCK_24H", cycleDays: 4, price: 1000000, dailyRate: 500000, img: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=400&auto=format&fit=crop" }
 };
 
+// Helper to get calendar days for Locked Plans (resets at Midnight EAT)
 const getCalendarDaysElapsed = (createdAtStr: string) => {
   const start = new Date(createdAtStr);
   const now = new Date();
@@ -58,32 +59,26 @@ const getCalendarDaysElapsed = (createdAtStr: string) => {
   return Math.floor((nowUTC - startUTC) / (1000 * 60 * 60 * 24));
 };
 
-const getNextMidnightEAT = () => {
-  const now = new Date();
-  const formatter = new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Kampala", hour: "numeric", minute: "numeric", second: "numeric", hour12: false });
-  const parts = formatter.formatToParts(now);
-  const hours = parseInt(parts.find(p => p.type === 'hour')?.value || '0');
-  const minutes = parseInt(parts.find(p => p.type === 'minute')?.value || '0');
-  const seconds = parseInt(parts.find(p => p.type === 'second')?.value || '0');
-  const msElapsedToday = ((hours * 60 * 60) + (minutes * 60) + seconds) * 1000;
-  const msInDay = 24 * 60 * 60 * 1000;
-  return now.getTime() + (msInDay - msElapsedToday);
-};
-
-function LiveTimer({ targetTime, locked, label }: { targetTime: number, locked?: boolean, label: string }) {
+// Live Timer Component that calculates exact hours/minutes/seconds
+function LiveTimer({ targetTime, isLocked }: { targetTime: number, isLocked?: boolean }) {
   const [timeLeft, setTimeLeft] = useState(targetTime - Date.now());
+  
   useEffect(() => {
-    if (timeLeft <= 0) return;
     const interval = setInterval(() => setTimeLeft(targetTime - Date.now()), 1000);
     return () => clearInterval(interval);
-  }, [targetTime, timeLeft]);
+  }, [targetTime]);
+
   if (timeLeft <= 0) return <span className="text-green-400">Processing...</span>;
+
+  const days = Math.floor(timeLeft / (1000 * 60 * 60 * 24));
   const hours = Math.floor((timeLeft / (1000 * 60 * 60)) % 24);
   const minutes = Math.floor((timeLeft / 1000 / 60) % 60);
   const seconds = Math.floor((timeLeft / 1000) % 60);
+
   return (
-    <span className={locked ? "text-red-400" : "text-green-400"}>
-      {label} {hours.toString().padStart(2, '0')}:{minutes.toString().padStart(2, '0')}:{seconds.toString().padStart(2, '0')}
+    <span className={isLocked ? "text-[#00D2FF]" : "text-green-400"}>
+      {days > 0 ? `${days}d ` : ''}
+      {hours.toString().padStart(2, '0')}:{minutes.toString().padStart(2, '0')}:{seconds.toString().padStart(2, '0')}
     </span>
   );
 }
@@ -114,6 +109,7 @@ export default function IncomePage() {
           const currentPayouts = Number(inv.payouts_made) || 0;
 
           if (info.category !== "LOCK") {
+            // For DAILY_PAYOUT and UNLOCK_24H
             if (daysElapsed > currentPayouts) {
               const cyclesToPay = daysElapsed - currentPayouts;
               let amountToAdd = 0;
@@ -122,7 +118,6 @@ export default function IncomePage() {
                  const remaining = info.cycleDays - currentPayouts;
                  if(remaining > 0) amountToAdd = (remaining * info.dailyRate);
                  
-                 // Try to update DB first
                  const { error } = await supabase.from("investments").update({ payouts_made: info.cycleDays, status: "COMPLETED" }).eq("id", inv.id);
                  if (!error) {
                    totalCreditToAdd += amountToAdd;
@@ -132,7 +127,6 @@ export default function IncomePage() {
               } else {
                  amountToAdd = (cyclesToPay * info.dailyRate);
                  
-                 // Try to update DB first
                  const { error } = await supabase.from("investments").update({ payouts_made: daysElapsed }).eq("id", inv.id);
                  if (!error) {
                    totalCreditToAdd += amountToAdd;
@@ -141,8 +135,9 @@ export default function IncomePage() {
               }
             }
           } else {
-            const calendarDays = getCalendarDaysElapsed(inv.created_at);
-            if (calendarDays >= info.cycleDays) {
+            // For LOCK plans: credit ONLY after the exact total hours pass (e.g., 3 days = 72 hours)
+            const totalHoursNeeded = info.cycleDays * 24;
+            if (hoursElapsed >= totalHoursNeeded) {
               const { error } = await supabase.from("investments").update({ status: "COMPLETED" }).eq("id", inv.id);
               if (!error) {
                 updatedInvs[i].status = "COMPLETED";
@@ -198,18 +193,43 @@ export default function IncomePage() {
 
             const isLockedPlan = info.category === "LOCK";
             const startTime = new Date(inv.created_at).getTime();
-            const daysElapsed = isLockedPlan ? getCalendarDaysElapsed(inv.created_at) : Math.floor((Date.now() - startTime) / (1000 * 60 * 60 * 24));
-            const nextPayoutTime = isLockedPlan ? getNextMidnightEAT() : startTime + (((inv.payouts_made || 0) + 1) * 24 * 60 * 60 * 1000);
+            const hoursElapsed = (Date.now() - startTime) / (1000 * 60 * 60);
+            
+            // Display Progress vs Math Progress
+            const displayDays = isLockedPlan ? getCalendarDaysElapsed(inv.created_at) : Math.floor(hoursElapsed / 24);
+            const currentPayouts = Number(inv.payouts_made) || 0;
+            
+            // Timer Targets
+            let targetTime = 0;
+            let timerLabel = "";
+
+            if (isLockedPlan) {
+              // 3 days lock = 72 hours exactly
+              const totalHoursNeeded = info.cycleDays * 24;
+              targetTime = startTime + (totalHoursNeeded * 60 * 60 * 1000); 
+              timerLabel = "Maturity in:";
+            } else if (info.category === "DAILY_PAYOUT") {
+              // Next payout is 24 hours after the last one. 
+              // Since day 1 is instant, payouts_made starts at 1. So target is startTime + 24h.
+              targetTime = startTime + (currentPayouts * 24 * 60 * 60 * 1000); 
+              timerLabel = "Next Payout:";
+            } else if (info.category === "UNLOCK_24H") {
+               if (currentPayouts === 0) {
+                 targetTime = startTime + (24 * 60 * 60 * 1000); // 24h to unlock
+                 timerLabel = "Unlocks in:";
+               } else {
+                 targetTime = startTime + (currentPayouts * 24 * 60 * 60 * 1000); // 24h cycles after unlock
+                 timerLabel = "Next Payout:";
+               }
+            }
+
             const totalExpected = Number(inv.expected_return);
             const initialAmount = Number(inv.amount) > 0 ? Number(inv.amount) : info.price;
-            
-            const currentPayouts = Number(inv.payouts_made) || 0;
             const totalClaimed = isLockedPlan ? 0 : (currentPayouts * info.dailyRate);
             
-            const progressPercent = Math.min((daysElapsed / info.cycleDays) * 100, 100);
-            const daysRemaining = Math.max(info.cycleDays - daysElapsed, 0);
-            const isCompleted = inv.status === "COMPLETED" || daysElapsed >= info.cycleDays;
-            const accruedProfit = isLockedPlan ? (daysElapsed / info.cycleDays) * (totalExpected - initialAmount) : (currentPayouts * info.dailyRate);
+            const progressPercent = Math.min((hoursElapsed / (info.cycleDays * 24)) * 100, 100);
+            const isCompleted = inv.status === "COMPLETED" || hoursElapsed >= (info.cycleDays * 24);
+            const accruedProfit = isLockedPlan ? (hoursElapsed / (info.cycleDays * 24)) * (totalExpected - initialAmount) : (currentPayouts * info.dailyRate);
 
             return (
               <div key={inv.id} className="bg-[#12141D] border border-gray-800 rounded-3xl p-5 shadow-lg relative overflow-hidden flex flex-col">
@@ -245,7 +265,7 @@ export default function IncomePage() {
                     <p className="text-[10px] text-gray-500 font-medium mb-0.5">Cycle Progress</p>
                     <p className="text-sm font-bold text-white flex items-center gap-1">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-                      {Math.min(daysElapsed, info.cycleDays)} / {info.cycleDays} Days
+                      {Math.min(displayDays, info.cycleDays)} / {info.cycleDays} Days
                     </p>
                   </div>
                 </div>
@@ -266,10 +286,10 @@ export default function IncomePage() {
                       <div className="w-5 h-5 rounded-full bg-[#00D2FF]/10 flex items-center justify-center">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#00D2FF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
                       </div>
-                      <p className="text-[11px] text-white font-medium">{isLockedPlan ? `Day ${daysElapsed + 1} Maturing:` : `Next Payout in:`}</p>
+                      <p className="text-[11px] text-white font-medium">{timerLabel}</p>
                     </div>
                     <p className="text-[13px] font-bold">
-                      <LiveTimer targetTime={nextPayoutTime} locked={info.category === "UNLOCK_24H" && daysElapsed === 0} label="" />
+                      <LiveTimer targetTime={targetTime} isLocked={isLockedPlan} />
                     </p>
                   </div>
                 )}
@@ -280,4 +300,4 @@ export default function IncomePage() {
       )}
     </div>
   );
-                }
+  }
