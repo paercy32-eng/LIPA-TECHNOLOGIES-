@@ -139,7 +139,6 @@ export default function ProfilePage() {
       setDepositStep(1);
       alert("Deposit submitted! Please wait 5 to 30 minutes for admin approval.");
     } catch (error: any) {
-      // Catch database-level unique constraint error just in case
       if (error.message.includes("idx_unique_tx_id")) {
         setMessage({ text: "This Transaction ID has already been used.", isError: true });
       } else {
@@ -331,8 +330,8 @@ export default function ProfilePage() {
             </div>
             <p className="text-sm text-gray-400 mb-6 text-center">Select a group to join below:</p>
             <div className="space-y-3">
-              <a href="https://chat.whatsapp.com/Lo2qmclH4Vf6nvViguQO5w?s=cl&p=a&iam=2" target="_blank" rel="noopener noreferrer" className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold py-4 rounded-xl transition shadow-lg shadow-[#25D366]/20">Group 1</a>
-              <a href="https://chat.whatsapp.com/K7VPMO3ux3r1ih9MR3KM0v?s=cl&p=a&iam=2" target="_blank" rel="noopener noreferrer" className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold py-4 rounded-xl transition shadow-lg shadow-[#25D366]/20">Group 2</a>
+              <a href="https://chat.whatsapp.com/IKUuoSpO0A32br93Id8FSF?s=cl&p=a&iam=2" target="_blank" rel="noopener noreferrer" className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold py-4 rounded-xl transition shadow-lg shadow-[#25D366]/20">Group 1</a>
+              <a href="https://chat.whatsapp.com/JYCu2H5Eut69mlnylusW9M?s=cl&p=a&iam=2" target="_blank" rel="noopener noreferrer" className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold py-4 rounded-xl transition shadow-lg shadow-[#25D366]/20">Group 2</a>
             </div>
           </div>
         </div>
@@ -392,4 +391,4 @@ export default function ProfilePage() {
       )}
     </div>
   );
-}
+            }
