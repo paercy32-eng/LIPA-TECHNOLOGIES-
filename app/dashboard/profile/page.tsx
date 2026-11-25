@@ -191,37 +191,37 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f0f9ff] text-gray-900 p-5 pb-24">
+    <div className="min-h-screen bg-gradient-to-br from-[#e0f2fe] to-[#f0f9ff] text-gray-900 p-5 pb-24">
       {/* Header */}
       <div className="flex justify-between items-center mb-8 pt-4">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center text-xl font-bold text-white shadow-[0_4px_15px_rgba(37,99,235,0.4)]">N</div>
+          <div className="w-12 h-12 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-xl flex items-center justify-center text-xl font-bold text-white shadow-lg shadow-blue-500/30">N</div>
           <div>
             <h1 className="text-2xl font-black text-gray-900 tracking-wide">Profile</h1>
-            <p className="text-[10px] text-gray-500 font-bold tracking-widest uppercase">{displayName || userPhone}</p>
+            <p className="text-[10px] text-blue-600 font-bold tracking-widest uppercase">{displayName || userPhone}</p>
           </div>
         </div>
       </div>
 
       {/* Balance Card */}
-      <div className="bg-white border border-gray-100 rounded-3xl p-6 mb-6 shadow-[0_8px_30px_rgba(0,0,0,0.04)] relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 blur-3xl rounded-full"></div>
+      <div className="bg-white border border-white rounded-3xl p-6 mb-6 shadow-[0_8px_30px_rgba(37,99,235,0.08)] relative overflow-hidden backdrop-blur-sm bg-white/80">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-100 blur-3xl rounded-full opacity-50"></div>
         <p className="text-xs text-gray-500 font-bold tracking-widest uppercase mb-2">Total Balance</p>
-        <div className="flex items-baseline gap-2 mb-8">
-          <span className="text-lg text-blue-600 font-bold">UGX</span>
+        <div className="flex items-baseline gap-2 mb-8 relative z-10">
+          <span className="text-lg text-cyan-500 font-bold">UGX</span>
           <h2 className="text-5xl font-black text-gray-900 tracking-tight">{Number(balance).toLocaleString()}</h2>
         </div>
-        <div className="flex gap-3">
-          <button onClick={() => { setIsDepositOpen(true); setDepositStep(1); setMessage({text:"", isError:false}); }} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition shadow-md shadow-blue-600/20 text-sm">Deposit</button>
-          <button onClick={() => { setIsWithdrawOpen(true); setMessage({text:"", isError:false}); }} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold py-3 rounded-xl transition text-sm">Withdraw</button>
+        <div className="flex gap-3 relative z-10">
+          <button onClick={() => { setIsDepositOpen(true); setDepositStep(1); setMessage({text:"", isError:false}); }} className="flex-1 bg-gradient-to-r from-cyan-400 to-blue-600 hover:from-cyan-500 hover:to-blue-700 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-blue-500/30 text-sm">Deposit</button>
+          <button onClick={() => { setIsWithdrawOpen(true); setMessage({text:"", isError:false}); }} className="flex-1 bg-white border border-gray-200 hover:bg-gray-50 text-gray-800 font-bold py-3 rounded-xl transition text-sm shadow-sm">Withdraw</button>
         </div>
       </div>
 
       {/* Menu Options */}
       <div className="space-y-3">
-        <Link href="/dashboard/history" className="w-full flex items-center justify-between bg-white border border-gray-100 p-4 rounded-2xl hover:bg-gray-50 transition group shadow-sm">
+        <Link href="/dashboard/history" className="w-full flex items-center justify-between bg-white border border-white p-4 rounded-2xl hover:bg-gray-50 transition group shadow-[0_4px_20px_rgba(0,0,0,0.02)]">
           <div className="flex items-center gap-4">
-            <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600">
+            <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-500">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
             </div>
             <span className="font-bold text-sm text-gray-800">Transaction history</span>
@@ -229,9 +229,9 @@ export default function ProfilePage() {
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
         </Link>
 
-        <button onClick={() => setIsBindOpen(true)} className="w-full flex items-center justify-between bg-white border border-gray-100 p-4 rounded-2xl hover:bg-gray-50 transition group shadow-sm">
+        <button onClick={() => setIsBindOpen(true)} className="w-full flex items-center justify-between bg-white border border-white p-4 rounded-2xl hover:bg-gray-50 transition group shadow-[0_4px_20px_rgba(0,0,0,0.02)]">
           <div className="flex items-center gap-4">
-            <div className="w-10 h-10 bg-cyan-50 rounded-xl flex items-center justify-center text-cyan-600">
+            <div className="w-10 h-10 bg-cyan-50 rounded-xl flex items-center justify-center text-cyan-500">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
             </div>
             <div className="text-left">
@@ -241,20 +241,20 @@ export default function ProfilePage() {
           </div>
         </button>
 
-        {/* Customer Care */}
-        <a href="https://t.me/Camara0899" target="_blank" rel="noopener noreferrer" className="w-full flex items-center justify-between bg-white border border-gray-100 p-4 rounded-2xl hover:bg-gray-50 transition group shadow-sm">
+        {/* Customer Care (UPDATED) */}
+        <a href="https://t.me/Camara0899" target="_blank" rel="noopener noreferrer" className="w-full flex items-center justify-between bg-white border border-white p-4 rounded-2xl hover:bg-gray-50 transition group shadow-[0_4px_20px_rgba(0,0,0,0.02)]">
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-500">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
             </div>
-            <span className="font-bold text-sm text-gray-800">Customer Care (@Camara0899)</span>
+            <span className="font-bold text-sm text-gray-800">Customer Care</span>
           </div>
         </a>
 
         {/* Telegram Group */}
-        <a href="https://t.me/+n2_EjAka_f5iZTlk" target="_blank" rel="noopener noreferrer" className="w-full flex items-center justify-between bg-white border border-gray-100 p-4 rounded-2xl hover:bg-gray-50 transition group shadow-sm">
+        <a href="https://t.me/+n2_EjAka_f5iZTlk" target="_blank" rel="noopener noreferrer" className="w-full flex items-center justify-between bg-white border border-white p-4 rounded-2xl hover:bg-gray-50 transition group shadow-[0_4px_20px_rgba(0,0,0,0.02)]">
           <div className="flex items-center gap-4">
-            <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-500">
+            <div className="w-10 h-10 bg-sky-50 rounded-xl flex items-center justify-center text-sky-500">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
             </div>
             <span className="font-bold text-sm text-gray-800">Join Telegram Group</span>
@@ -262,7 +262,7 @@ export default function ProfilePage() {
         </a>
       </div>
 
-      <button onClick={handleLogout} className="w-full mt-8 flex items-center justify-center gap-3 bg-red-50 border border-red-100 p-4 rounded-2xl hover:bg-red-100 transition">
+      <button onClick={handleLogout} className="w-full mt-8 flex items-center justify-center gap-3 bg-red-50 border border-red-100 p-4 rounded-2xl hover:bg-red-100 transition shadow-sm">
         <span className="font-bold text-red-500 tracking-widest uppercase text-sm">Log Out</span>
       </button>
 
@@ -303,7 +303,7 @@ export default function ProfilePage() {
                   </div>
                 )}
 
-                <button onClick={proceedToPayment} className="w-full font-bold py-4 rounded-xl text-white bg-blue-600 hover:bg-blue-700">Confirm Amount</button>
+                <button onClick={proceedToPayment} className="w-full font-bold py-4 rounded-xl text-white bg-gradient-to-r from-cyan-400 to-blue-600 hover:from-cyan-500 hover:to-blue-700">Confirm Amount</button>
               </>
             ) : (
               <>
@@ -330,7 +330,7 @@ export default function ProfilePage() {
                 <label className="block text-[10px] font-bold tracking-widest text-gray-500 uppercase mb-1">Transaction ID</label>
                 <input type="text" placeholder="Enter the ID from SMS" value={txId} onChange={(e) => setTxId(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-bold text-lg mb-4 focus:outline-none focus:border-blue-500" />
                 
-                <button onClick={handleDepositSubmit} disabled={isProcessing} className="w-full font-bold py-4 rounded-xl text-white bg-blue-600 hover:bg-blue-700 mb-4">
+                <button onClick={handleDepositSubmit} disabled={isProcessing} className="w-full font-bold py-4 rounded-xl text-white bg-gradient-to-r from-cyan-400 to-blue-600 hover:from-cyan-500 hover:to-blue-700 mb-4">
                   {isProcessing ? 'Submitting...' : 'Submit Deposit'}
                 </button>
                 
@@ -353,7 +353,7 @@ export default function ProfilePage() {
             <input type="text" placeholder="e.g. John Doe" value={bindName} onChange={(e) => setBindName(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 text-gray-900 mb-4" />
             <label className="block text-[10px] font-bold tracking-widest text-gray-500 uppercase mb-1">Mobile Money Number</label>
             <input type="tel" placeholder="e.g. 0700123456" value={bindPhone} onChange={(e) => setBindPhone(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 text-gray-900 mb-6" />
-            <button onClick={handleBindSubmit} disabled={isProcessing} className="w-full font-bold py-4 rounded-xl text-white bg-blue-600 hover:bg-blue-700">
+            <button onClick={handleBindSubmit} disabled={isProcessing} className="w-full font-bold py-4 rounded-xl text-white bg-gradient-to-r from-cyan-400 to-blue-600 hover:from-cyan-500 hover:to-blue-700">
               {isProcessing ? 'Saving...' : boundNumber ? 'Update Account' : 'Save Account'}
             </button>
           </div>
@@ -387,7 +387,7 @@ export default function ProfilePage() {
                   <p className="text-xs text-gray-500">Available: UGX {Number(balance).toLocaleString()}</p>
                   {withdrawAmount && <p className="text-xs text-green-600 font-bold">You Receive: UGX {(Number(withdrawAmount) * 0.85).toLocaleString()}</p>}
                 </div>
-                <button onClick={handleWithdrawSubmit} disabled={isProcessing} className="w-full font-bold py-4 rounded-xl text-white bg-blue-600 hover:bg-blue-700">{isProcessing ? 'Processing...' : 'Request Withdrawal'}</button>
+                <button onClick={handleWithdrawSubmit} disabled={isProcessing} className="w-full font-bold py-4 rounded-xl text-white bg-gradient-to-r from-cyan-400 to-blue-600 hover:from-cyan-500 hover:to-blue-700">{isProcessing ? 'Processing...' : 'Request Withdrawal'}</button>
               </>
             )}
           </div>
@@ -395,4 +395,4 @@ export default function ProfilePage() {
       )}
     </div>
   );
-  }
+}
