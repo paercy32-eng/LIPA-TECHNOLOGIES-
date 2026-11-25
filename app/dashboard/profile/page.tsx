@@ -38,6 +38,11 @@ export default function ProfilePage() {
   const [message, setMessage] = useState({ text: "", isError: false });
   const [copied, setCopied] = useState(false);
 
+  // Calculations for 2% Fee
+  const numericAmount = Number(depositAmount) || 0;
+  const fee = numericAmount * 0.02;
+  const totalToPay = numericAmount + fee;
+
   useEffect(() => {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -90,10 +95,9 @@ export default function ProfilePage() {
     }
   };
 
-  // --- DEPOSIT LOGIC (MANUAL) ---
+  // --- DEPOSIT LOGIC ---
   const proceedToPayment = () => {
-    const amount = Number(depositAmount);
-    if (amount < 5000) return setMessage({ text: "Minimum deposit is 5,000 UGX", isError: true });
+    if (numericAmount < 15000) return setMessage({ text: "Minimum deposit is 15,000 UGX", isError: true });
     if (!depositPhone || depositPhone.length < 9) return setMessage({ text: "Please enter a valid phone number", isError: true });
     setMessage({ text: "", isError: false });
     setDepositStep(2);
@@ -108,16 +112,18 @@ export default function ProfilePage() {
     try {
       const cleanTxId = txId.trim().toUpperCase();
 
+      // 1. Check if this Transaction ID has already been used
       const { data: existingTx } = await supabase.from("transactions").select("id").eq("tx_id", cleanTxId).maybeSingle();
       if (existingTx) {
         setIsProcessing(false);
         return setMessage({ text: "This Transaction ID has already been submitted.", isError: true });
       }
 
+      // 2. Insert the new deposit request
       const { error } = await supabase.from("transactions").insert({
         user_id: userId,
         type: "DEPOSIT",
-        amount: Number(depositAmount),
+        amount: numericAmount, // The admin will credit this amount
         status: "PENDING",
         tx_id: cleanTxId,
         payment_phone: depositPhone
@@ -129,7 +135,7 @@ export default function ProfilePage() {
       setDepositAmount("");
       setTxId("");
       setDepositStep(1);
-      alert("Deposit submitted! Please wait 5 to 30 minutes for admin approval.");
+      alert(`Deposit of UGX ${numericAmount.toLocaleString()} submitted! Please wait 5 to 30 minutes for admin to approve.`);
     } catch (error: any) {
       if (error.message.includes("idx_unique_tx_id")) {
         setMessage({ text: "This Transaction ID has already been used.", isError: true });
@@ -262,7 +268,7 @@ export default function ProfilePage() {
 
       {/* --- MULTI-STEP DEPOSIT MODAL --- */}
       {isDepositOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-xl font-bold text-gray-900">{depositStep === 1 ? "Deposit Amount" : "Payment Details"}</h3>
@@ -274,29 +280,51 @@ export default function ProfilePage() {
             {depositStep === 1 ? (
               <>
                 <label className="block text-[10px] font-bold tracking-widest text-gray-500 uppercase mb-1">Amount (UGX)</label>
-                <input type="number" placeholder="Minimum 5,000" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-bold text-lg mb-4 focus:outline-none focus:border-blue-500" />
+                <input type="number" placeholder="Minimum 15,000" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-bold text-lg mb-4 focus:outline-none focus:border-blue-500" />
                 
                 <label className="block text-[10px] font-bold tracking-widest text-gray-500 uppercase mb-1">Phone Number to Pay From</label>
-                <input type="tel" placeholder="e.g. 0700123456" value={depositPhone} onChange={(e) => setDepositPhone(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-bold text-lg mb-6 focus:outline-none focus:border-blue-500" />
+                <input type="tel" placeholder="e.g. 0700123456" value={depositPhone} onChange={(e) => setDepositPhone(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-bold text-lg mb-4 focus:outline-none focus:border-blue-500" />
                 
+                {/* 2% Fee Breakdown */}
+                {numericAmount > 0 && (
+                  <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6">
+                    <div className="flex justify-between items-center mb-1">
+                      <p className="text-xs text-gray-600">Deposit Amount:</p>
+                      <p className="text-sm font-bold text-gray-900">UGX {numericAmount.toLocaleString()}</p>
+                    </div>
+                    <div className="flex justify-between items-center mb-2">
+                      <p className="text-xs text-gray-600">TavuPay Fee (2%):</p>
+                      <p className="text-sm font-bold text-red-500">+ UGX {fee.toLocaleString()}</p>
+                    </div>
+                    <div className="border-t border-blue-200 pt-2 flex justify-between items-center">
+                      <p className="text-xs font-bold text-blue-800">Total to Pay:</p>
+                      <p className="text-lg font-black text-blue-700">UGX {totalToPay.toLocaleString()}</p>
+                    </div>
+                  </div>
+                )}
+
                 <button onClick={proceedToPayment} className="w-full font-bold py-4 rounded-xl text-white bg-blue-600 hover:bg-blue-700">Confirm Amount</button>
               </>
             ) : (
               <>
                 <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-4">
-                  <p className="text-[10px] text-gray-500 font-bold uppercase mb-1">Pay to this Number</p>
-                  <div className="flex justify-between items-center mb-2">
+                  <p className="text-[10px] text-gray-500 font-bold uppercase mb-1">Pay exactly this amount:</p>
+                  <p className="text-2xl font-black text-gray-900 mb-3">UGX {totalToPay.toLocaleString()}</p>
+                  
+                  <p className="text-[10px] text-gray-500 font-bold uppercase mb-1">To this Number:</p>
+                  <div className="flex justify-between items-center mb-3">
                     <p className="text-lg font-black text-gray-900">0707828822</p>
                     <button onClick={() => handleCopy("0707828822")} className="text-xs bg-gray-200 text-blue-700 font-bold px-3 py-1.5 rounded-lg border border-gray-300">
                       {copied ? "Copied!" : "Copy"}
                     </button>
                   </div>
-                  <p className="text-[10px] text-gray-500 font-bold uppercase mb-1">Registered Name</p>
+                  
+                  <p className="text-[10px] text-gray-500 font-bold uppercase mb-1">Registered Name:</p>
                   <p className="text-sm font-bold text-blue-700">PETER KIREMBWE</p>
                 </div>
 
                 <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 mb-4 text-center">
-                  <p className="text-xs text-blue-800">Dial <b className="text-gray-900 text-sm">*185*1#</b> to deposit exactly <b className="text-gray-900">UGX {Number(depositAmount).toLocaleString()}</b></p>
+                  <p className="text-xs text-blue-800">Dial <b className="text-gray-900 text-sm">*185*1#</b> and send <b className="text-gray-900">UGX {totalToPay.toLocaleString()}</b></p>
                 </div>
 
                 <label className="block text-[10px] font-bold tracking-widest text-gray-500 uppercase mb-1">Transaction ID</label>
@@ -315,7 +343,7 @@ export default function ProfilePage() {
 
       {/* --- BIND ACCOUNT MODAL --- */}
       {isBindOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-xl font-bold text-gray-900">Bind Account</h3>
@@ -334,7 +362,7 @@ export default function ProfilePage() {
 
       {/* --- WITHDRAW MODAL --- */}
       {isWithdrawOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-xl font-bold text-gray-900">Withdraw Funds</h3>
@@ -367,4 +395,4 @@ export default function ProfilePage() {
       )}
     </div>
   );
-      }
+  }
