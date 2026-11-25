@@ -1,6 +1,6 @@
 export const metadata = {
-  title: 'LIPA Technologies',
-  description: 'LIPA App',
+  title: 'Novida - Premium Daily Yields',
+  description: 'Invest in premium digital assets with Novida.',
 }
 
 export default function RootLayout({
