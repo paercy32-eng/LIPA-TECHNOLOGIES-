@@ -27,7 +27,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   ];
 
   return (
-    <div className="min-h-screen bg-[#f0f9ff] text-gray-900 pb-20">
+    <div className="min-h-screen bg-[#F0F9FF] text-gray-900 pb-20">
       <main>{children}</main>
 
       <nav className="fixed bottom-0 w-full bg-white border-t border-gray-100 flex justify-around p-3 z-50 shadow-[0_-5px_20px_rgba(0,0,0,0.05)]">
@@ -37,7 +37,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <Link 
               key={item.name} 
               href={item.path}
-              className={`flex flex-col items-center text-[10px] space-y-1 transition-colors ${isActive ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+              className={`flex flex-col items-center text-[10px] space-y-1 transition-colors ${isActive ? 'text-[#FF6B00]' : 'text-gray-400 hover:text-gray-600'}`}
             >
               {item.icon}
               <span className="font-bold">{item.name}</span>
