@@ -27,17 +27,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   ];
 
   return (
-    <div className="min-h-screen bg-[#0B0C10] text-white pb-20">
+    <div className="min-h-screen bg-[#f0f9ff] text-gray-900 pb-20">
       <main>{children}</main>
 
-      <nav className="fixed bottom-0 w-full bg-[#12141D] border-t border-gray-800 flex justify-around p-3 z-50 shadow-[0_-5px_20px_rgba(0,0,0,0.5)]">
+      <nav className="fixed bottom-0 w-full bg-white border-t border-gray-100 flex justify-around p-3 z-50 shadow-[0_-5px_20px_rgba(0,0,0,0.05)]">
         {navItems.map((item) => {
           const isActive = pathname === item.path;
           return (
             <Link 
               key={item.name} 
               href={item.path}
-              className={`flex flex-col items-center text-[10px] space-y-1 transition-colors ${isActive ? 'text-[#7B61FF]' : 'text-gray-500 hover:text-gray-300'}`}
+              className={`flex flex-col items-center text-[10px] space-y-1 transition-colors ${isActive ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
             >
               {item.icon}
               <span className="font-bold">{item.name}</span>
