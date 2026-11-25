@@ -18,19 +18,16 @@ export default function ProfilePage() {
   const [boundNumber, setBoundNumber] = useState("");
   const [displayName, setDisplayName] = useState("");
   
-  // Modals State
   const [isDepositOpen, setIsDepositOpen] = useState(false);
   const [depositStep, setDepositStep] = useState(1);
   const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
   const [isBindOpen, setIsBindOpen] = useState(false);
   
-  // Form States
   const [depositAmount, setDepositAmount] = useState("");
   const [depositPhone, setDepositPhone] = useState("");
   const [txId, setTxId] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
   
-  // Bind Form State
   const [bindName, setBindName] = useState("");
   const [bindPhone, setBindPhone] = useState("");
   
@@ -38,7 +35,6 @@ export default function ProfilePage() {
   const [message, setMessage] = useState({ text: "", isError: false });
   const [copied, setCopied] = useState(false);
 
-  // Calculations for 2% Fee
   const numericAmount = Number(depositAmount) || 0;
   const fee = numericAmount * 0.02;
   const totalToPay = numericAmount + fee;
@@ -95,7 +91,6 @@ export default function ProfilePage() {
     }
   };
 
-  // --- DEPOSIT LOGIC ---
   const proceedToPayment = () => {
     if (numericAmount < 15000) return setMessage({ text: "Minimum deposit is 15,000 UGX", isError: true });
     if (!depositPhone || depositPhone.length < 9) return setMessage({ text: "Please enter a valid phone number", isError: true });
@@ -111,19 +106,16 @@ export default function ProfilePage() {
 
     try {
       const cleanTxId = txId.trim().toUpperCase();
-
-      // 1. Check if this Transaction ID has already been used
       const { data: existingTx } = await supabase.from("transactions").select("id").eq("tx_id", cleanTxId).maybeSingle();
       if (existingTx) {
         setIsProcessing(false);
         return setMessage({ text: "This Transaction ID has already been submitted.", isError: true });
       }
 
-      // 2. Insert the new deposit request
       const { error } = await supabase.from("transactions").insert({
         user_id: userId,
         type: "DEPOSIT",
-        amount: numericAmount, // The admin will credit this amount
+        amount: numericAmount,
         status: "PENDING",
         tx_id: cleanTxId,
         payment_phone: depositPhone
@@ -191,33 +183,31 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#e0f2fe] to-[#f0f9ff] text-gray-900 p-5 pb-24">
-      {/* Header */}
+    <div className="min-h-screen bg-[#F0F9FF] text-gray-900 p-5 pb-24">
       <div className="flex justify-between items-center mb-8 pt-4">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-xl flex items-center justify-center text-xl font-bold text-white shadow-lg shadow-blue-500/30">N</div>
+          <div className="w-12 h-12 bg-gradient-to-br from-[#FF6B00] to-orange-400 rounded-xl flex items-center justify-center text-xl font-bold text-white shadow-lg shadow-orange-500/30">N</div>
           <div>
             <h1 className="text-2xl font-black text-gray-900 tracking-wide">Profile</h1>
-            <p className="text-[10px] text-blue-600 font-bold tracking-widest uppercase">{displayName || userPhone}</p>
+            <p className="text-[10px] text-cyan-600 font-bold tracking-widest uppercase">{displayName || userPhone}</p>
           </div>
         </div>
       </div>
 
-      {/* Balance Card */}
-      <div className="bg-white border border-white rounded-3xl p-6 mb-6 shadow-[0_8px_30px_rgba(37,99,235,0.08)] relative overflow-hidden backdrop-blur-sm bg-white/80">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-100 blur-3xl rounded-full opacity-50"></div>
+      {/* Balance Card with Aqua Glow */}
+      <div className="bg-white border border-white rounded-3xl p-6 mb-6 shadow-[0_8px_30px_rgba(37,99,235,0.08)] relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-200 blur-3xl rounded-full opacity-40"></div>
         <p className="text-xs text-gray-500 font-bold tracking-widest uppercase mb-2">Total Balance</p>
         <div className="flex items-baseline gap-2 mb-8 relative z-10">
-          <span className="text-lg text-cyan-500 font-bold">UGX</span>
+          <span className="text-lg text-cyan-600 font-bold">UGX</span>
           <h2 className="text-5xl font-black text-gray-900 tracking-tight">{Number(balance).toLocaleString()}</h2>
         </div>
         <div className="flex gap-3 relative z-10">
-          <button onClick={() => { setIsDepositOpen(true); setDepositStep(1); setMessage({text:"", isError:false}); }} className="flex-1 bg-gradient-to-r from-cyan-400 to-blue-600 hover:from-cyan-500 hover:to-blue-700 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-blue-500/30 text-sm">Deposit</button>
-          <button onClick={() => { setIsWithdrawOpen(true); setMessage({text:"", isError:false}); }} className="flex-1 bg-white border border-gray-200 hover:bg-gray-50 text-gray-800 font-bold py-3 rounded-xl transition text-sm shadow-sm">Withdraw</button>
+          <button onClick={() => { setIsDepositOpen(true); setDepositStep(1); setMessage({text:"", isError:false}); }} className="flex-1 bg-[#FF6B00] hover:bg-[#E65A00] text-white font-bold py-3 rounded-xl transition shadow-lg shadow-[#FF6B00]/30 text-sm">Deposit</button>
+          <button onClick={() => { setIsWithdrawOpen(true); setMessage({text:"", isError:false}); }} className="flex-1 bg-gray-50 border border-gray-200 hover:bg-gray-100 text-gray-800 font-bold py-3 rounded-xl transition text-sm shadow-sm">Withdraw</button>
         </div>
       </div>
 
-      {/* Menu Options */}
       <div className="space-y-3">
         <Link href="/dashboard/history" className="w-full flex items-center justify-between bg-white border border-white p-4 rounded-2xl hover:bg-gray-50 transition group shadow-[0_4px_20px_rgba(0,0,0,0.02)]">
           <div className="flex items-center gap-4">
@@ -241,7 +231,6 @@ export default function ProfilePage() {
           </div>
         </button>
 
-        {/* Customer Care (UPDATED) */}
         <a href="https://t.me/Camara0899" target="_blank" rel="noopener noreferrer" className="w-full flex items-center justify-between bg-white border border-white p-4 rounded-2xl hover:bg-gray-50 transition group shadow-[0_4px_20px_rgba(0,0,0,0.02)]">
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-500">
@@ -251,7 +240,6 @@ export default function ProfilePage() {
           </div>
         </a>
 
-        {/* Telegram Group */}
         <a href="https://t.me/+n2_EjAka_f5iZTlk" target="_blank" rel="noopener noreferrer" className="w-full flex items-center justify-between bg-white border border-white p-4 rounded-2xl hover:bg-gray-50 transition group shadow-[0_4px_20px_rgba(0,0,0,0.02)]">
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 bg-sky-50 rounded-xl flex items-center justify-center text-sky-500">
@@ -280,14 +268,13 @@ export default function ProfilePage() {
             {depositStep === 1 ? (
               <>
                 <label className="block text-[10px] font-bold tracking-widest text-gray-500 uppercase mb-1">Amount (UGX)</label>
-                <input type="number" placeholder="Minimum 15,000" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-bold text-lg mb-4 focus:outline-none focus:border-blue-500" />
+                <input type="number" placeholder="Minimum 15,000" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-bold text-lg mb-4 focus:outline-none focus:border-[#FF6B00]" />
                 
                 <label className="block text-[10px] font-bold tracking-widest text-gray-500 uppercase mb-1">Phone Number to Pay From</label>
-                <input type="tel" placeholder="e.g. 0700123456" value={depositPhone} onChange={(e) => setDepositPhone(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-bold text-lg mb-4 focus:outline-none focus:border-blue-500" />
+                <input type="tel" placeholder="e.g. 0700123456" value={depositPhone} onChange={(e) => setDepositPhone(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-bold text-lg mb-4 focus:outline-none focus:border-[#FF6B00]" />
                 
-                {/* 2% Fee Breakdown */}
                 {numericAmount > 0 && (
-                  <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6">
+                  <div className="bg-orange-50 border border-orange-100 rounded-xl p-4 mb-6">
                     <div className="flex justify-between items-center mb-1">
                       <p className="text-xs text-gray-600">Deposit Amount:</p>
                       <p className="text-sm font-bold text-gray-900">UGX {numericAmount.toLocaleString()}</p>
@@ -296,14 +283,14 @@ export default function ProfilePage() {
                       <p className="text-xs text-gray-600">TavuPay Fee (2%):</p>
                       <p className="text-sm font-bold text-red-500">+ UGX {fee.toLocaleString()}</p>
                     </div>
-                    <div className="border-t border-blue-200 pt-2 flex justify-between items-center">
-                      <p className="text-xs font-bold text-blue-800">Total to Pay:</p>
-                      <p className="text-lg font-black text-blue-700">UGX {totalToPay.toLocaleString()}</p>
+                    <div className="border-t border-orange-200 pt-2 flex justify-between items-center">
+                      <p className="text-xs font-bold text-orange-800">Total to Pay:</p>
+                      <p className="text-lg font-black text-[#FF6B00]">UGX {totalToPay.toLocaleString()}</p>
                     </div>
                   </div>
                 )}
 
-                <button onClick={proceedToPayment} className="w-full font-bold py-4 rounded-xl text-white bg-gradient-to-r from-cyan-400 to-blue-600 hover:from-cyan-500 hover:to-blue-700">Confirm Amount</button>
+                <button onClick={proceedToPayment} className="w-full font-bold py-4 rounded-xl text-white bg-[#FF6B00] hover:bg-[#E65A00]">Confirm Amount</button>
               </>
             ) : (
               <>
@@ -323,14 +310,14 @@ export default function ProfilePage() {
                   <p className="text-sm font-bold text-blue-700">PETER KIREMBWE</p>
                 </div>
 
-                <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 mb-4 text-center">
-                  <p className="text-xs text-blue-800">Dial <b className="text-gray-900 text-sm">*185*1#</b> and send <b className="text-gray-900">UGX {totalToPay.toLocaleString()}</b></p>
+                <div className="bg-orange-50 border border-orange-100 rounded-xl p-3 mb-4 text-center">
+                  <p className="text-xs text-orange-800">Dial <b className="text-gray-900 text-sm">*185*1#</b> and send <b className="text-gray-900">UGX {totalToPay.toLocaleString()}</b></p>
                 </div>
 
                 <label className="block text-[10px] font-bold tracking-widest text-gray-500 uppercase mb-1">Transaction ID</label>
-                <input type="text" placeholder="Enter the ID from SMS" value={txId} onChange={(e) => setTxId(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-bold text-lg mb-4 focus:outline-none focus:border-blue-500" />
+                <input type="text" placeholder="Enter the ID from SMS" value={txId} onChange={(e) => setTxId(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-bold text-lg mb-4 focus:outline-none focus:border-[#FF6B00]" />
                 
-                <button onClick={handleDepositSubmit} disabled={isProcessing} className="w-full font-bold py-4 rounded-xl text-white bg-gradient-to-r from-cyan-400 to-blue-600 hover:from-cyan-500 hover:to-blue-700 mb-4">
+                <button onClick={handleDepositSubmit} disabled={isProcessing} className="w-full font-bold py-4 rounded-xl text-white bg-[#FF6B00] hover:bg-[#E65A00] mb-4">
                   {isProcessing ? 'Submitting...' : 'Submit Deposit'}
                 </button>
                 
@@ -350,10 +337,10 @@ export default function ProfilePage() {
               <button onClick={() => setIsBindOpen(false)} className="text-gray-400 hover:text-gray-900">✕</button>
             </div>
             <label className="block text-[10px] font-bold tracking-widest text-gray-500 uppercase mb-1">Full Names (as on Mobile Money)</label>
-            <input type="text" placeholder="e.g. John Doe" value={bindName} onChange={(e) => setBindName(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 text-gray-900 mb-4" />
+            <input type="text" placeholder="e.g. John Doe" value={bindName} onChange={(e) => setBindName(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-[#FF6B00] text-gray-900 mb-4" />
             <label className="block text-[10px] font-bold tracking-widest text-gray-500 uppercase mb-1">Mobile Money Number</label>
-            <input type="tel" placeholder="e.g. 0700123456" value={bindPhone} onChange={(e) => setBindPhone(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 text-gray-900 mb-6" />
-            <button onClick={handleBindSubmit} disabled={isProcessing} className="w-full font-bold py-4 rounded-xl text-white bg-gradient-to-r from-cyan-400 to-blue-600 hover:from-cyan-500 hover:to-blue-700">
+            <input type="tel" placeholder="e.g. 0700123456" value={bindPhone} onChange={(e) => setBindPhone(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-[#FF6B00] text-gray-900 mb-6" />
+            <button onClick={handleBindSubmit} disabled={isProcessing} className="w-full font-bold py-4 rounded-xl text-white bg-[#FF6B00] hover:bg-[#E65A00]">
               {isProcessing ? 'Saving...' : boundNumber ? 'Update Account' : 'Save Account'}
             </button>
           </div>
@@ -374,7 +361,7 @@ export default function ProfilePage() {
             {!boundNumber ? (
               <div className="text-center py-6">
                 <p className="text-gray-500 text-sm mb-4">You must bind an account before you can withdraw.</p>
-                <button onClick={() => { setIsWithdrawOpen(false); setIsBindOpen(true); }} className="bg-blue-600 text-white font-bold py-3 px-6 rounded-xl hover:bg-blue-700">Bind Account Now</button>
+                <button onClick={() => { setIsWithdrawOpen(false); setIsBindOpen(true); }} className="bg-[#FF6B00] text-white font-bold py-3 px-6 rounded-xl hover:bg-[#E65A00]">Bind Account Now</button>
               </div>
             ) : (
               <>
@@ -382,12 +369,12 @@ export default function ProfilePage() {
                   <p className="text-xs text-blue-800">Withdrawing to: <b>{fullName}</b> ({boundNumber}). A fee of <b>15%</b> applies.</p>
                 </div>
                 <label className="block text-[10px] font-bold tracking-widest text-gray-500 uppercase mb-1">Amount (UGX)</label>
-                <input type="number" placeholder="Minimum 3,000" value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-bold text-lg mb-2 focus:outline-none focus:border-blue-500" />
+                <input type="number" placeholder="Minimum 3,000" value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-bold text-lg mb-2 focus:outline-none focus:border-[#FF6B00]" />
                 <div className="flex justify-between items-center mb-6 px-1">
                   <p className="text-xs text-gray-500">Available: UGX {Number(balance).toLocaleString()}</p>
                   {withdrawAmount && <p className="text-xs text-green-600 font-bold">You Receive: UGX {(Number(withdrawAmount) * 0.85).toLocaleString()}</p>}
                 </div>
-                <button onClick={handleWithdrawSubmit} disabled={isProcessing} className="w-full font-bold py-4 rounded-xl text-white bg-gradient-to-r from-cyan-400 to-blue-600 hover:from-cyan-500 hover:to-blue-700">{isProcessing ? 'Processing...' : 'Request Withdrawal'}</button>
+                <button onClick={handleWithdrawSubmit} disabled={isProcessing} className="w-full font-bold py-4 rounded-xl text-white bg-[#FF6B00] hover:bg-[#E65A00]">{isProcessing ? 'Processing...' : 'Request Withdrawal'}</button>
               </>
             )}
           </div>
@@ -395,4 +382,4 @@ export default function ProfilePage() {
       )}
     </div>
   );
-}
+        }
