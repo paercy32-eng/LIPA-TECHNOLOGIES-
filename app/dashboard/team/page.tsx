@@ -99,7 +99,7 @@ export default function TeamPage() {
     fetchTeamMembers();
   };
 
-  const referralLink = `https://lipa-technologies.vercel.app/auth?ref=${referralCode}`;
+  const referralLink = typeof window !== "undefined" ? `${window.location.origin}/auth?ref=${referralCode}` : `https://novida.vercel.app/auth?ref=${referralCode}`;
 
   const copyToClipboard = (text: string, type: 'code' | 'link') => {
     navigator.clipboard.writeText(text);
