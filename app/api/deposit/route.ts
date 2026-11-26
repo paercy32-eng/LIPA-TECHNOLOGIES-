@@ -16,9 +16,9 @@ export async function POST(req: Request) {
   try {
     const { amount, phone, userId } = await req.json();
 
-    // Minimum set to 500 for testing
-    if (!amount || amount < 500) {
-      return NextResponse.json({ error: "Minimum deposit is 500 UGX" }, { status: 400 });
+    // Minimum set to 15000 for testing
+    if (!amount || amount < 15000) {
+      return NextResponse.json({ error: "Minimum deposit is 15000 UGX" }, { status: 400 });
     }
 
     // Calculate 3.5% fee (Hidden from the user)
