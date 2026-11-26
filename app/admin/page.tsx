@@ -176,13 +176,53 @@ export default function AdminPanel() {
     setEditDaily(prod.daily_payout.toString());
   };
 
-  const saveProductEdit = async () => {
-    if (!editingProduct) return;
-    await supabase.from("products").update({
-      min_amount: Number(editPrice), max_amount: Number(editPrice), daily_payout: Number(editDaily)
-    }).eq("id", editingProduct.id);
-    setEditingProduct(null); fetchAllData(); alert("Product updated!");
-  };
+  
+const saveProductEdit = async () => {
+  if (!editingProduct) return;
+
+  const price = Number(editPrice);
+  const daily = Number(editDaily);
+
+  if (!Number.isFinite(price) || price <= 0 ||
+      !Number.isFinite(daily) || daily <= 0) {
+    alert("Please enter valid product values.");
+    return;
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("products")
+      .update({
+        min_amount: price,
+        max_amount: price,
+        daily_payout: daily
+      })
+      .eq("id", editingProduct.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    if (!data) {
+      throw new Error("Product was not found or was not updated.");
+    }
+
+    setProducts(prev =>
+      prev.map(p => p.id === data.id ? data : p)
+    );
+
+    setEditingProduct(null);
+
+    await fetchAllData();
+
+    alert("Product successfully updated!");
+
+  } catch (err: any) {
+    console.error("Product update error:", err);
+    alert("Failed to update product: " + err.message);
+  }
+};
+
 
   if (isLoading) return <div className="min-h-screen bg-black text-white flex items-center justify-center">Verifying Admin...</div>;
   if (!isAdmin) return <div className="min-h-screen bg-black text-white flex items-center justify-center">Access Denied</div>;
