@@ -19,6 +19,7 @@ function LiveTimer({ targetTime, isLocked }: { targetTime: number, isLocked?: bo
   const [timeLeft, setTimeLeft] = useState(targetTime - Date.now());
 
   useEffect(() => {
+    setTimeLeft(targetTime - Date.now());
     const interval = setInterval(() => setTimeLeft(targetTime - Date.now()), 1000);
     return () => clearInterval(interval);
   }, [targetTime]);
@@ -160,8 +161,8 @@ export default function IncomePage() {
             const displayDays = Math.floor(hoursElapsed / 24);
             const currentPayouts = Number(inv.payouts_made) || 0;
 
-            // Next payout is 24h from the last one
-            const targetTime = startTime + (currentPayouts * 24 * 60 * 60 * 1000);
+            // Next payout happens once the next full 24h cycle is reached
+            const targetTime = startTime + ((currentPayouts + 1) * 24 * 60 * 60 * 1000);
 
             const totalExpected = Number(inv.expected_return);
             const initialAmount = Number(inv.amount) > 0 ? Number(inv.amount) : p.min_amount;
