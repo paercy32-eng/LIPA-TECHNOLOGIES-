@@ -13,9 +13,9 @@ export default function AdminPanel() {
   const [activeTab, setActiveTab] = useState("OVERVIEW");
   const [isLoading, setIsLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
-  
+
   const [users, setUsers] = useState<any[]>([]);
-  const [deposits, setDeposits] = useState<any[]>([]); 
+  const [deposits, setDeposits] = useState<any[]>([]);
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [stats, setStats] = useState({ totalUsers: 0, totalDeposited: 0, totalInvested: 0 });
@@ -29,6 +29,12 @@ export default function AdminPanel() {
   const [viewingReferralsFor, setViewingReferralsFor] = useState<string | null>(null);
   const [userReferrals, setUserReferrals] = useState<any[]>([]);
   const [isFetchingRefs, setIsFetchingRefs] = useState(false);
+
+  // Grant Product State
+  const [grantingUser, setGrantingUser] = useState<any>(null);
+  const [grantProductId, setGrantProductId] = useState("");
+  const [grantedIds, setGrantedIds] = useState<string[]>([]);
+  const [isGranting, setIsGranting] = useState(false);
 
   useEffect(() => {
     const checkAdminAndFetch = async () => {
@@ -73,16 +79,15 @@ export default function AdminPanel() {
     setIsFetchingRefs(true);
     setUserReferrals([]);
 
-    // Fetch referrals for this user
     const { data: refs } = await supabase.from("referrals").select("referee_id, level").eq("referrer_id", userId);
-    
+
     if (refs && refs.length > 0) {
       const ids = refs.map(r => r.referee_id);
       const { data: profiles } = await supabase.from("profiles").select("id, phone, display_name").in("id", ids);
       const { data: activeInvs } = await supabase.from("investments").select("user_id").in("user_id", ids).eq("status", "ACTIVE");
-      
+
       const activeUserIds = activeInvs?.map(i => i.user_id) || [];
-      
+
       const merged = refs.map(r => {
         const p = profiles?.find(prof => prof.id === r.referee_id);
         return {
@@ -92,8 +97,8 @@ export default function AdminPanel() {
           level: r.level,
           isActive: activeUserIds.includes(r.referee_id)
         };
-      }).sort((a, b) => a.level - b.level); // Sort by Level 1, 2, 3
-      
+      }).sort((a, b) => a.level - b.level);
+
       setUserReferrals(merged);
     }
     setIsFetchingRefs(false);
@@ -102,12 +107,12 @@ export default function AdminPanel() {
   const handleAdjustBalance = async (userId: string, currentBalance: number) => {
     const newBalanceStr = prompt("Enter new balance (UGX):", currentBalance.toString());
     if (newBalanceStr === null) return;
-    
+
     const newBalance = Number(newBalanceStr);
     const difference = newBalance - currentBalance;
 
     await supabase.from("balances").update({ available: newBalance }).eq("user_id", userId);
-    
+
     if (difference !== 0) {
       await supabase.from("transactions").insert({
         user_id: userId, type: "ADMIN_ADJUSTMENT", amount: Math.abs(difference), status: "COMPLETED"
@@ -120,6 +125,61 @@ export default function AdminPanel() {
     const newStatus = currentStatus === "BANNED" ? "ACTIVE" : "BANNED";
     await supabase.from("profiles").update({ status: newStatus }).eq("id", userId);
     fetchAllData();
+  };
+
+  // ---- GRANT PRODUCT ----
+  const openGrantProduct = async (user: any) => {
+    setGrantingUser(user);
+    setGrantProductId("");
+    setGrantedIds([]);
+
+    // Find which products this user already has active
+    const { data: invs } = await supabase
+      .from("investments")
+      .select("product_id")
+      .eq("user_id", user.id)
+      .eq("status", "ACTIVE");
+    setGrantedIds(invs?.map(i => i.product_id) || []);
+  };
+
+  const handleGrantProduct = async () => {
+    if (!grantingUser || !grantProductId) {
+      alert("Please select a product first.");
+      return;
+    }
+    const product = products.find(p => p.id === grantProductId);
+    if (!product) return;
+
+    if (grantedIds.includes(product.id)) {
+      alert("This user already has this product active.");
+      return;
+    }
+
+    if (!confirm(`Grant ${product.name} to ${grantingUser.phone}? No money will be deducted from the user.`)) return;
+
+    setIsGranting(true);
+    try {
+      const { error } = await supabase.from("investments").insert({
+        user_id: grantingUser.id,
+        product_id: product.id,
+        amount: product.min_amount,
+        expected_return: Number(product.daily_payout) * Number(product.duration_days),
+        status: "ACTIVE",
+        payouts_made: 0
+      });
+
+      if (error) throw error;
+
+      alert(`${product.name} granted to ${grantingUser.phone}!`);
+      setGrantingUser(null);
+      setGrantProductId("");
+      await fetchAllData();
+    } catch (err: any) {
+      console.error("Grant product error:", err);
+      alert("Failed to grant product: " + err.message);
+    } finally {
+      setIsGranting(false);
+    }
   };
 
   const handleApproveDeposit = async (txId: string, userId: string, amount: number) => {
@@ -176,53 +236,51 @@ export default function AdminPanel() {
     setEditDaily(prod.daily_payout.toString());
   };
 
-  
-const saveProductEdit = async () => {
-  if (!editingProduct) return;
+  const saveProductEdit = async () => {
+    if (!editingProduct) return;
 
-  const price = Number(editPrice);
-  const daily = Number(editDaily);
+    const price = Number(editPrice);
+    const daily = Number(editDaily);
 
-  if (!Number.isFinite(price) || price <= 0 ||
-      !Number.isFinite(daily) || daily <= 0) {
-    alert("Please enter valid product values.");
-    return;
-  }
-
-  try {
-    const { data, error } = await supabase
-      .from("products")
-      .update({
-        min_amount: price,
-        max_amount: price,
-        daily_payout: daily
-      })
-      .eq("id", editingProduct.id)
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    if (!data) {
-      throw new Error("Product was not found or was not updated.");
+    if (!Number.isFinite(price) || price <= 0 ||
+        !Number.isFinite(daily) || daily <= 0) {
+      alert("Please enter valid product values.");
+      return;
     }
 
-    setProducts(prev =>
-      prev.map(p => p.id === data.id ? data : p)
-    );
+    try {
+      const { data, error } = await supabase
+        .from("products")
+        .update({
+          min_amount: price,
+          max_amount: price,
+          daily_payout: daily
+        })
+        .eq("id", editingProduct.id)
+        .select()
+        .single();
 
-    setEditingProduct(null);
+      if (error) throw error;
 
-    await fetchAllData();
+      if (!data) {
+        throw new Error("Product was not found or was not updated.");
+      }
 
-    alert("Product successfully updated!");
+      setProducts(prev =>
+        prev.map(p => p.id === data.id ? data : p)
+      );
 
-  } catch (err: any) {
-    console.error("Product update error:", err);
-    alert("Failed to update product: " + err.message);
-  }
-};
+      setEditingProduct(null);
 
+      await fetchAllData();
+
+      alert("Product successfully updated!");
+
+    } catch (err: any) {
+      console.error("Product update error:", err);
+      alert("Failed to update product: " + err.message);
+    }
+  };
 
   if (isLoading) return <div className="min-h-screen bg-black text-white flex items-center justify-center">Verifying Admin...</div>;
   if (!isAdmin) return <div className="min-h-screen bg-black text-white flex items-center justify-center">Access Denied</div>;
@@ -268,6 +326,7 @@ const saveProductEdit = async () => {
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <button onClick={() => handleAdjustBalance(user.id, userBalance)} className="text-[10px] bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg border border-blue-100 font-bold">Adjust Balance</button>
+                    <button onClick={() => openGrantProduct(user)} className="text-[10px] bg-green-50 text-green-600 px-3 py-1.5 rounded-lg border border-green-100 font-bold">Grant Product</button>
                     <button onClick={() => handleViewReferrals(user.id)} className="text-[10px] bg-cyan-50 text-cyan-600 px-3 py-1.5 rounded-lg border border-cyan-100 font-bold">View Referrals</button>
                     <button onClick={() => handleBanUser(user.id, user.status || 'ACTIVE')} className="text-[10px] bg-red-50 text-red-600 px-3 py-1.5 rounded-lg border border-red-100 font-bold">{user.status === 'BANNED' ? 'Unban User' : 'Ban User'}</button>
                   </div>
@@ -345,6 +404,56 @@ const saveProductEdit = async () => {
             <label className="block text-[10px] font-bold tracking-widest text-gray-500 uppercase mb-1">Daily Payout (UGX)</label>
             <input type="number" value={editDaily} onChange={(e) => setEditDaily(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-bold mb-6" />
             <button onClick={saveProductEdit} className="w-full font-bold py-4 rounded-xl text-white bg-blue-600">Save Changes</button>
+          </div>
+        </div>
+      )}
+
+      {/* GRANT PRODUCT MODAL */}
+      {grantingUser && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl max-h-[85vh] flex flex-col">
+            <div className="flex justify-between items-center mb-1">
+              <h3 className="text-xl font-bold text-gray-900">Grant Product</h3>
+              <button onClick={() => setGrantingUser(null)} className="text-gray-400 hover:text-gray-900 text-xl">✕</button>
+            </div>
+            <p className="text-xs text-gray-500 mb-4">To: <span className="font-bold text-gray-900">{grantingUser.phone}</span></p>
+
+            <div className="flex-1 overflow-y-auto space-y-2 mb-4">
+              {products.map((p) => {
+                const alreadyHas = grantedIds.includes(p.id);
+                const selected = grantProductId === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    disabled={alreadyHas}
+                    onClick={() => setGrantProductId(p.id)}
+                    className={`w-full text-left p-3 rounded-xl border transition-all ${
+                      alreadyHas
+                        ? "bg-gray-100 border-gray-200 opacity-60 cursor-not-allowed"
+                        : selected
+                        ? "bg-blue-50 border-blue-500"
+                        : "bg-gray-50 border-gray-200"
+                    }`}
+                  >
+                    <div className="flex justify-between items-center">
+                      <p className="font-bold text-sm text-gray-900">{p.name}</p>
+                      {alreadyHas && <span className="text-[9px] font-bold text-green-600 uppercase">Already active</span>}
+                    </div>
+                    <p className="text-[10px] text-gray-500">
+                      Price: UGX {Number(p.min_amount).toLocaleString()} | Daily: UGX {Number(p.daily_payout).toLocaleString()}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              onClick={handleGrantProduct}
+              disabled={isGranting || !grantProductId}
+              className="w-full font-bold py-4 rounded-xl text-white bg-green-600 disabled:opacity-50"
+            >
+              {isGranting ? "Granting..." : "Grant Product"}
+            </button>
           </div>
         </div>
       )}
