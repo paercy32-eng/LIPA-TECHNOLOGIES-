@@ -31,9 +31,9 @@ export async function POST(req: Request) {
 
     // Detect Provider (MTN/Airtel)
     let provider = pesajet.utils.detectProvider(cleanPhone);
-    if (!provider) provider = "mtn"; // Fallback if 073
+    if (!provider) provider = "mtn"; 
 
-    const reference = randomUUID(); // Our internal UUID
+    const reference = randomUUID(); 
 
     // 1. Create payment with PesaJet
     const payment = await pesajet.payments.create({
@@ -50,9 +50,9 @@ export async function POST(req: Request) {
       id: reference, 
       user_id: userId, 
       type: "DEPOSIT",
-      amount: Number(amount), // Credit base amount
+      amount: Number(amount), 
       status: "PENDING",
-      tx_id: payment.transactionId, // Store PesaJet ID for the verifier
+      tx_id: payment.transactionId, // Store PesaJet ID for verifier
       payment_phone: phone
     });
 
