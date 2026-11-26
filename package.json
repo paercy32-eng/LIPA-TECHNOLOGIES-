@@ -1,5 +1,5 @@
 {
-  "name": "lipa-technologies",
+  "name": "novida",
   "version": "1.0.0",
   "private": true,
   "scripts": {
@@ -8,6 +8,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@pesajet/sdk": "^1.0.0",
     "@supabase/supabase-js": "^2.39.0",
     "next": "14.2.30",
     "react": "^18.2.0",
