@@ -17,7 +17,7 @@ const NOVIDA_IMAGES = [
 
 function LiveTimer({ targetTime, isLocked }: { targetTime: number, isLocked?: boolean }) {
   const [timeLeft, setTimeLeft] = useState(targetTime - Date.now());
-  
+
   useEffect(() => {
     const interval = setInterval(() => setTimeLeft(targetTime - Date.now()), 1000);
     return () => clearInterval(interval);
@@ -41,19 +41,32 @@ function LiveTimer({ targetTime, isLocked }: { targetTime: number, isLocked?: bo
 export default function IncomePage() {
   const [investments, setInvestments] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
     const fetchAndProcessInvestments = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        setIsLoading(false);
+        return;
+      }
 
       // Fetch User's Investments with Product Details joined
-      const { data: invs } = await supabase
+      const { data: invs, error: invsError } = await supabase
         .from("investments")
-        .select("*, products(name, category, duration_days, daily_payout, min_amount)")
+        .select("*, products(name, duration_days, daily_payout, min_amount)")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
-      
+
+      if (invsError) {
+        console.error("Investments load error:", invsError);
+        setLoadError(invsError.message);
+        setIsLoading(false);
+        return;
+      }
+
+      setLoadError("");
+
       if (invs) {
         let updatedInvs = [...invs];
         let totalCreditToAdd = 0;
@@ -71,25 +84,25 @@ export default function IncomePage() {
           if (daysElapsed > currentPayouts) {
             const cyclesToPay = daysElapsed - currentPayouts;
             let amountToAdd = 0;
-            
+
             if (currentPayouts + cyclesToPay > inv.products.duration_days) {
-                const remaining = inv.products.duration_days - currentPayouts;
-                if(remaining > 0) amountToAdd = (remaining * inv.products.daily_payout);
-                
-                const { error } = await supabase.from("investments").update({ payouts_made: inv.products.duration_days, status: "COMPLETED" }).eq("id", inv.id);
-                if (!error) {
-                  totalCreditToAdd += amountToAdd;
-                  updatedInvs[i].payouts_made = inv.products.duration_days;
-                  updatedInvs[i].status = "COMPLETED";
-                }
+              const remaining = inv.products.duration_days - currentPayouts;
+              if (remaining > 0) amountToAdd = (remaining * inv.products.daily_payout);
+
+              const { error } = await supabase.from("investments").update({ payouts_made: inv.products.duration_days, status: "COMPLETED" }).eq("id", inv.id);
+              if (!error) {
+                totalCreditToAdd += amountToAdd;
+                updatedInvs[i].payouts_made = inv.products.duration_days;
+                updatedInvs[i].status = "COMPLETED";
+              }
             } else {
-                amountToAdd = (cyclesToPay * inv.products.daily_payout);
-                
-                const { error } = await supabase.from("investments").update({ payouts_made: daysElapsed }).eq("id", inv.id);
-                if (!error) {
-                  totalCreditToAdd += amountToAdd;
-                  updatedInvs[i].payouts_made = daysElapsed;
-                }
+              amountToAdd = (cyclesToPay * inv.products.daily_payout);
+
+              const { error } = await supabase.from("investments").update({ payouts_made: daysElapsed }).eq("id", inv.id);
+              if (!error) {
+                totalCreditToAdd += amountToAdd;
+                updatedInvs[i].payouts_made = daysElapsed;
+              }
             }
           }
         }
@@ -111,7 +124,7 @@ export default function IncomePage() {
     };
 
     fetchAndProcessInvestments();
-    const interval = setInterval(fetchAndProcessInvestments, 30000); 
+    const interval = setInterval(fetchAndProcessInvestments, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -124,6 +137,10 @@ export default function IncomePage() {
 
       {isLoading ? (
         <div className="text-center text-blue-500 mt-10 font-bold">Loading your portfolio...</div>
+      ) : loadError ? (
+        <div className="bg-red-50 border border-red-100 text-red-600 p-5 rounded-3xl text-sm font-bold text-center">
+          Could not load your investments: {loadError}
+        </div>
       ) : investments.length === 0 ? (
         <div className="flex flex-col items-center justify-center mt-20 text-center bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
           <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-4 text-blue-500">
@@ -142,14 +159,14 @@ export default function IncomePage() {
             const hoursElapsed = (Date.now() - startTime) / (1000 * 60 * 60);
             const displayDays = Math.floor(hoursElapsed / 24);
             const currentPayouts = Number(inv.payouts_made) || 0;
-            
+
             // Next payout is 24h from the last one
-            const targetTime = startTime + (currentPayouts * 24 * 60 * 60 * 1000); 
+            const targetTime = startTime + (currentPayouts * 24 * 60 * 60 * 1000);
 
             const totalExpected = Number(inv.expected_return);
             const initialAmount = Number(inv.amount) > 0 ? Number(inv.amount) : p.min_amount;
             const totalClaimed = currentPayouts * p.daily_payout;
-            
+
             const progressPercent = Math.min((hoursElapsed / (p.duration_days * 24)) * 100, 100);
             const isCompleted = inv.status === "COMPLETED" || hoursElapsed >= (p.duration_days * 24);
             const imgUrl = NOVIDA_IMAGES[index % NOVIDA_IMAGES.length];
@@ -158,10 +175,10 @@ export default function IncomePage() {
               <div key={inv.id} className="bg-white border border-gray-100 rounded-3xl p-5 shadow-[0_8px_30px_rgba(0,0,0,0.04)] relative overflow-hidden flex flex-col">
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex gap-3">
-                    <img 
-                      src={imgUrl} 
-                      alt={p.name} 
-                      className="w-12 h-12 rounded-xl object-cover border border-gray-100" 
+                    <img
+                      src={imgUrl}
+                      alt={p.name}
+                      className="w-12 h-12 rounded-xl object-cover border border-gray-100"
                     />
                     <div>
                       <h3 className="text-[16px] font-black text-gray-900 leading-tight">{p.name}</h3>
@@ -224,4 +241,4 @@ export default function IncomePage() {
       )}
     </div>
   );
-            }
+}
