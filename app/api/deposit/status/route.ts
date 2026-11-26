@@ -14,23 +14,19 @@ export async function GET(req: Request) {
     const reference = searchParams.get("reference");
     if (!reference) return NextResponse.json({ error: "Missing reference" }, { status: 400 });
 
-    // 1. Get transaction from our DB
     const { data: tx } = await supabase.from("transactions").select("*").eq("id", reference).single();
     if (!tx || tx.status === "COMPLETED") return NextResponse.json({ status: tx?.status || "NOT_FOUND" });
 
-    // 2. Ask PesaJet for the status using their ID
     const pesajetTx = await pesajet.payments.get(tx.tx_id);
 
     if (pesajetTx.status === "COMPLETED") {
-      // Credit the user (Same logic as webhook)
       await supabase.from("transactions").update({ status: "COMPLETED" }).eq("id", reference);
       
       const { data: bal } = await supabase.from("balances").select("available").eq("user_id", tx.user_id).single();
       if (bal) await supabase.from("balances").update({ available: Number(bal.available) + Number(tx.amount) }).eq("user_id", tx.user_id);
 
-      // Process Referral Commission (L1, L2, L3)
+      // Referral Commission
       const { count: depCount } = await supabase.from("transactions").select("*", { count: 'exact', head: true }).eq("user_id", tx.user_id).eq("type", "DEPOSIT").eq("status", "COMPLETED");
-      
       if (depCount === 1) {
         const { data: buyerProfile } = await supabase.from("profiles").select("referred_by").eq("id", tx.user_id).single();
         let refId = buyerProfile?.referred_by;
@@ -40,7 +36,6 @@ export async function GET(req: Request) {
           if (!refId) break;
           const comm = Number(tx.amount) * rates[level - 1];
           const { data: refBal } = await supabase.from("balances").select("available, total_commission").eq("user_id", refId).single();
-          
           if (refBal) {
             await supabase.from("balances").update({ available: Number(refBal.available) + comm, total_commission: Number(refBal.total_commission) + comm }).eq("user_id", refId);
             await supabase.from("transactions").insert({ user_id: refId, type: "COMMISSION", amount: comm, status: "COMPLETED" });
@@ -53,7 +48,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ status: "COMPLETED" });
     }
 
-    return NextResponse.json({ status: pesajetTx.status }); // PENDING, FAILED, etc.
+    return NextResponse.json({ status: pesajetTx.status });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
