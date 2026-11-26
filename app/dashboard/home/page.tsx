@@ -7,45 +7,22 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// 13 Novida soda cans drawn in code (one colour per flavor)
-const FLAVORS: [string, string, string][] = [
-  ["Orange", "#ff8a00", "#ffc266"],
-  ["Pineapple", "#e6b800", "#fff08a"],
-  ["Green Apple", "#2e9e3e", "#a8e6a1"],
-  ["Mango", "#ff9f1c", "#ffd98a"],
-  ["Lemon", "#d4c900", "#fff59d"],
-  ["Cocktail", "#d81b60", "#ff9ec0"],
-  ["Citrus", "#ff6f3c", "#ffcba4"],
-  ["Tropical", "#00a8c6", "#9be7f2"],
-  ["Berry", "#7b1fa2", "#d9a8e8"],
-  ["Cola", "#4e342e", "#b99b8f"],
-  ["Grape", "#512da8", "#c1aef0"],
-  ["Cherry", "#c62828", "#f5a3a3"],
-  ["Assorted", "#1565c0", "#90c4f5"],
+// 13 Vibrant Soda/Fruit Drink Images for Novida
+const NOVIDA_IMAGES = [
+  "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?q=80&w=400&auto=format&fit=crop", // Orange Soda
+  "https://images.unsplash.com/photo-1581006852262-e4307cf6283a?q=80&w=400&auto=format&fit=crop", // Pineapple
+  "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?q=80&w=400&auto=format&fit=crop", // Green Apple
+  "https://images.unsplash.com/photo-1546171753-97d7676e4602?q=80&w=400&auto=format&fit=crop", // Mango
+  "https://images.unsplash.com/photo-1519925610903-381054cc2a1c?q=80&w=400&auto=format&fit=crop", // Lemon
+  "https://images.unsplash.com/photo-1560508180-03f285f67ded?q=80&w=400&auto=format&fit=crop", // Cocktail
+  "https://images.unsplash.com/photo-1579954115545-a95591f28bfc?q=80&w=400&auto=format&fit=crop", // Citrus
+  "https://images.unsplash.com/photo-1595981267035-7b04ca84a82d?q=80&w=400&auto=format&fit=crop", // Tropical
+  "https://images.unsplash.com/photo-1543253687-c931c8e01820?q=80&w=400&auto=format&fit=crop", // Berry
+  "https://images.unsplash.com/photo-1629203851122-3726ecdf080e?q=80&w=400&auto=format&fit=crop", // Cola
+  "https://images.unsplash.com/photo-1536935338788-846bb9981813?q=80&w=400&auto=format&fit=crop", // Grape
+  "https://images.unsplash.com/photo-1584225064785-c62a8b43d148?q=80&w=400&auto=format&fit=crop", // Cherry
+  "https://images.unsplash.com/photo-1574966739987-65e38db0f7ce?q=80&w=400&auto=format&fit=crop", // Assorted
 ];
-
-const makeCan = (name: string, c1: string, c2: string) => {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
-<defs>
-<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c2}"/><stop offset="1" stop-color="${c1}"/></linearGradient>
-<linearGradient id="can" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${c1}"/><stop offset="0.4" stop-color="${c2}"/><stop offset="1" stop-color="${c1}"/></linearGradient>
-</defs>
-<rect width="200" height="200" fill="url(#bg)"/>
-<circle cx="30" cy="40" r="12" fill="#fff" opacity="0.35"/>
-<circle cx="165" cy="60" r="8" fill="#fff" opacity="0.35"/>
-<circle cx="150" cy="150" r="14" fill="#fff" opacity="0.25"/>
-<ellipse cx="100" cy="186" rx="38" ry="6" fill="#000" opacity="0.15"/>
-<rect x="70" y="30" width="60" height="150" rx="10" fill="url(#can)" stroke="#fff" stroke-width="2"/>
-<rect x="76" y="22" width="48" height="10" rx="4" fill="#cfd8dc"/>
-<rect x="70" y="85" width="60" height="50" fill="#fff" opacity="0.92"/>
-<text x="100" y="107" text-anchor="middle" font-family="Arial,sans-serif" font-weight="900" font-size="13" fill="${c1}">NOVIDA</text>
-<text x="100" y="124" text-anchor="middle" font-family="Arial,sans-serif" font-weight="700" font-size="9" fill="#333">${name}</text>
-<rect x="78" y="40" width="6" height="130" rx="3" fill="#fff" opacity="0.25"/>
-</svg>`;
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
-};
-
-const NOVIDA_IMAGES = FLAVORS.map(([name, c1, c2]) => makeCan(name, c1, c2));
 
 export default function HomePage() {
   const [purchasedIds, setPurchasedIds] = useState<string[]>([]);
@@ -58,7 +35,7 @@ export default function HomePage() {
   useEffect(() => {
     const fetchProductsAndUser = async () => {
       const { data: prods } = await supabase.from("products").select("*").eq("is_active", true).order("min_amount", { ascending: true });
-
+      
       if (prods) {
         const mapped = prods.map((p, index) => ({
           id: p.id,
@@ -106,11 +83,11 @@ export default function HomePage() {
 
       if (invCount === 0) {
         const { count: adminAdjCount } = await supabase.from("transactions").select("*", { count: 'exact', head: true }).eq("user_id", userId).eq("type", "ADMIN_ADJUSTMENT");
-
+        
         if (adminAdjCount === 0) {
           const { data: deposits } = await supabase.from("transactions").select("amount").eq("user_id", userId).eq("type", "DEPOSIT").eq("status", "COMPLETED");
           const totalDeposited = deposits?.reduce((sum, tx) => sum + Number(tx.amount), 0) || 0;
-
+          
           if (totalDeposited < product.price) {
             setIsProcessing(false);
             return alert(`First Purchase Rule: Your first purchase must be fully funded by approved deposits.`);
