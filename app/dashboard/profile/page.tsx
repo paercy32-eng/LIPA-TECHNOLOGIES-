@@ -21,7 +21,7 @@ export default function ProfilePage() {
   // Modals State
   const [isDepositOpen, setIsDepositOpen] = useState(false);
   const [depositAmount, setDepositAmount] = useState("");
-  const [depositPhone, setDepositPhone] = useState(""); // NEW: Number to pay from
+  const [depositPhone, setDepositPhone] = useState("");
   const [isDepositing, setIsDepositing] = useState(false);
   const [depositStatus, setDepositStatus] = useState("");
   
@@ -43,7 +43,7 @@ export default function ProfilePage() {
         const phone = rawPhone.startsWith("256") ? rawPhone.substring(3) : rawPhone;
         
         setUserPhone(phone);
-        setDepositPhone(phone); // Pre-fill with their number
+        setDepositPhone(phone); 
         setUserId(user.id);
 
         const { data: profile } = await supabase.from("profiles").select("display_name, full_name, bound_number").eq("id", user.id).single();
@@ -66,8 +66,8 @@ export default function ProfilePage() {
 
   const handleDeposit = async () => {
     const amount = Number(depositAmount);
-    // Minimum set to 500 for testing
-    if (amount < 500) return setMessage({ text: "Minimum deposit is 500 UGX", isError: true });
+    // Minimum deposit is 15,000
+    if (amount < 15000) return setMessage({ text: "Minimum deposit is 15,000 UGX", isError: true });
     if (!depositPhone || depositPhone.length < 9) return setMessage({ text: "Please enter a valid phone number", isError: true });
 
     setIsDepositing(true);
@@ -137,7 +137,8 @@ export default function ProfilePage() {
     }
 
     const amount = Number(withdrawAmount);
-    if (amount < 3000) return setMessage({ text: "Minimum withdrawal is 3,000 UGX", isError: true });
+    // Minimum withdrawal is 5,000
+    if (amount < 5000) return setMessage({ text: "Minimum withdrawal is 5,000 UGX", isError: true });
     if (amount > Number(balance)) return setMessage({ text: "Insufficient balance", isError: true });
 
     setIsProcessing(true);
@@ -229,6 +230,15 @@ export default function ProfilePage() {
             <span className="font-bold text-sm text-gray-800">Customer Care</span>
           </div>
         </a>
+
+        <a href="https://t.me/+n2_EjAka_f5iZTlk" target="_blank" rel="noopener noreferrer" className="w-full flex items-center justify-between bg-white border border-white p-4 rounded-2xl hover:bg-gray-50 transition group shadow-sm">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-500">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+            </div>
+            <span className="font-bold text-sm text-gray-800">Join Telegram Group</span>
+          </div>
+        </a>
       </div>
 
       <button onClick={handleLogout} className="w-full mt-8 flex items-center justify-center gap-3 bg-red-50 border border-red-100 p-4 rounded-2xl hover:bg-red-100 transition shadow-sm">
@@ -255,7 +265,7 @@ export default function ProfilePage() {
             ) : (
               <>
                 <label className="block text-[10px] font-bold tracking-widest text-gray-500 uppercase mb-1">Amount (UGX)</label>
-                <input type="number" placeholder="Minimum 500" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-bold text-lg mb-4 focus:outline-none focus:border-blue-500" />
+                <input type="number" placeholder="Minimum 15,000" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-bold text-lg mb-4 focus:outline-none focus:border-blue-500" />
                 
                 <label className="block text-[10px] font-bold tracking-widest text-gray-500 uppercase mb-1">Phone Number to Pay From</label>
                 <input type="tel" placeholder="e.g. 0700123456" value={depositPhone} onChange={(e) => setDepositPhone(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-bold text-lg mb-6 focus:outline-none focus:border-blue-500" />
@@ -306,7 +316,7 @@ export default function ProfilePage() {
                   <p className="text-xs text-blue-800">Withdrawing to: <b>{fullName}</b> ({boundNumber}). A fee of <b>15%</b> applies.</p>
                 </div>
                 <label className="block text-[10px] font-bold tracking-widest text-gray-500 uppercase mb-1">Amount (UGX)</label>
-                <input type="number" placeholder="Minimum 3,000" value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-bold text-lg mb-2" />
+                <input type="number" placeholder="Minimum 5,000" value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-bold text-lg mb-2" />
                 <div className="flex justify-between items-center mb-6 px-1">
                   <p className="text-xs text-gray-500">Available: UGX {Number(balance).toLocaleString()}</p>
                   {withdrawAmount && <p className="text-xs text-green-600 font-bold">You Receive: UGX {(Number(withdrawAmount) * 0.85).toLocaleString()}</p>}
