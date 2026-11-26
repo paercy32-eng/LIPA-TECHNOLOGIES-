@@ -16,13 +16,15 @@ export async function POST(req: Request) {
   try {
     const { amount, phone, userId } = await req.json();
 
-    if (!amount || amount < 15000) {
-      return NextResponse.json({ error: "Minimum deposit is 15,000 UGX" }, { status: 400 });
+    // Minimum set to 500 for testing
+    if (!amount || amount < 500) {
+      return NextResponse.json({ error: "Minimum deposit is 500 UGX" }, { status: 400 });
     }
 
-    // Calculate 2% fee
-    const fee = amount * 0.02;
-    const totalToCharge = Math.floor(amount + fee);
+    // Calculate 3.5% fee (Hidden from the user)
+    const fee = amount * 0.035;
+    // We round up to the nearest whole number to avoid decimal errors with PesaJet
+    const totalToCharge = Math.ceil(amount + fee); 
 
     // Format phone
     let cleanPhone = phone.replace(/\D/g, '');
@@ -42,17 +44,17 @@ export async function POST(req: Request) {
       phoneNumber: `+${cleanPhone}`,
       provider: provider,
       reference: reference,
-      description: "Novida Wallet Deposit",
+      description: "Novida Deposit",
     });
 
-    // 2. Save PENDING to Database
+    // 2. Save PENDING to Database (Crediting the base amount, not the fee)
     const { error: dbError } = await supabase.from("transactions").insert({
       id: reference, 
       user_id: userId, 
       type: "DEPOSIT",
       amount: Number(amount), 
       status: "PENDING",
-      tx_id: payment.transactionId, // Store PesaJet ID for verifier
+      tx_id: payment.transactionId, 
       payment_phone: phone
     });
 
