@@ -7,21 +7,21 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// 13 Premium Water/Beverage Images for Novida
+// 13 Vibrant Soda/Fruit Drink Images for Novida
 const NOVIDA_IMAGES = [
-  "https://images.unsplash.com/photo-1523362628745-0c100150b504?q=80&w=400&auto=format&fit=crop", // Splash
-  "https://images.unsplash.com/photo-1548839140-29a749e1cf4d?q=80&w=400&auto=format&fit=crop", // Bottle
-  "https://images.unsplash.com/photo-1602143407151-7111542de6e8?q=80&w=400&auto=format&fit=crop", // Bottles
-  "https://images.unsplash.com/photo-1574966739987-65e38db0f7ce?q=80&w=400&auto=format&fit=crop", // Glass
-  "https://images.unsplash.com/photo-1536935338788-846bb9981813?q=80&w=400&auto=format&fit=crop", // Droplets
-  "https://images.unsplash.com/photo-1504893524553-b855bce32c67?q=80&w=400&auto=format&fit=crop", // Fountain
-  "https://images.unsplash.com/photo-1550505095-81378a674395?q=80&w=400&auto=format&fit=crop", // Cold water
-  "https://images.unsplash.com/photo-1560512823-829485b8bf24?q=80&w=400&auto=format&fit=crop", // Water surface
-  "https://images.unsplash.com/photo-1543163521-1bf539c55dd2?q=80&w=400&auto=format&fit=crop", // Blue water
-  "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?q=80&w=400&auto=format&fit=crop", // Refresh
-  "https://images.unsplash.com/photo-1584225064785-c62a8b43d148?q=80&w=400&auto=format&fit=crop", // Premium bottle
-  "https://images.unsplash.com/photo-1564419320461-6870880221ad?q=80&w=400&auto=format&fit=crop", // Ice water
-  "https://images.unsplash.com/photo-1519400197429-646dfbe673e2?q=80&w=400&auto=format&fit=crop", // Blue splash
+  "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?q=80&w=400&auto=format&fit=crop", // Orange Soda
+  "https://images.unsplash.com/photo-1581006852262-e4307cf6283a?q=80&w=400&auto=format&fit=crop", // Pineapple
+  "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?q=80&w=400&auto=format&fit=crop", // Green Apple
+  "https://images.unsplash.com/photo-1546171753-97d7676e4602?q=80&w=400&auto=format&fit=crop", // Mango
+  "https://images.unsplash.com/photo-1519925610903-381054cc2a1c?q=80&w=400&auto=format&fit=crop", // Lemon
+  "https://images.unsplash.com/photo-1560508180-03f285f67ded?q=80&w=400&auto=format&fit=crop", // Cocktail
+  "https://images.unsplash.com/photo-1579954115545-a95591f28bfc?q=80&w=400&auto=format&fit=crop", // Citrus
+  "https://images.unsplash.com/photo-1595981267035-7b04ca84a82d?q=80&w=400&auto=format&fit=crop", // Tropical
+  "https://images.unsplash.com/photo-1543253687-c931c8e01820?q=80&w=400&auto=format&fit=crop", // Berry
+  "https://images.unsplash.com/photo-1629203851122-3726ecdf080e?q=80&w=400&auto=format&fit=crop", // Cola
+  "https://images.unsplash.com/photo-1536935338788-846bb9981813?q=80&w=400&auto=format&fit=crop", // Grape
+  "https://images.unsplash.com/photo-1584225064785-c62a8b43d148?q=80&w=400&auto=format&fit=crop", // Cherry
+  "https://images.unsplash.com/photo-1574966739987-65e38db0f7ce?q=80&w=400&auto=format&fit=crop", // Assorted
 ];
 
 export default function HomePage() {
@@ -40,13 +40,11 @@ export default function HomePage() {
         const mapped = prods.map((p, index) => ({
           id: p.id,
           name: p.name,
-          category: p.category,
           price: p.min_amount,
           daily: p.daily_payout.toLocaleString(),
           cycle: `${p.duration_days}d`,
           total: (p.daily_payout * p.duration_days),
           dailyRate: p.daily_payout,
-          cycleDays: p.duration_days,
           img: NOVIDA_IMAGES[index % NOVIDA_IMAGES.length]
         }));
         setProducts(mapped);
@@ -101,24 +99,17 @@ export default function HomePage() {
       await supabase.from("balances").update({ available: newBalance }).eq("user_id", userId);
 
       const { error: invError } = await supabase.from("investments").insert({
-        user_id: userId,
-        product_id: product.id,
-        amount: product.price,
-        expected_return: product.total,
-        status: "ACTIVE",
-        payouts_made: 1
+        user_id: userId, product_id: product.id, amount: product.price, expected_return: product.total, status: "ACTIVE", payouts_made: 1
       });
       if (invError) throw invError;
 
       const finalBalance = newBalance + product.dailyRate;
       await supabase.from("balances").update({ available: finalBalance }).eq("user_id", userId);
-      await supabase.from("transactions").insert({
-        user_id: userId, type: "DAILY_EARNING", amount: product.dailyRate, status: "COMPLETED"
-      });
+      await supabase.from("transactions").insert({ user_id: userId, type: "DAILY_EARNING", amount: product.dailyRate, status: "COMPLETED" });
 
       setBalance(finalBalance);
       setPurchasedIds([...purchasedIds, product.id]);
-      alert(`Successfully purchased ${product.name}! Day 1 payout of UGX ${product.dailyRate.toLocaleString()} has been credited.`);
+      alert(`Successfully purchased ${product.name}!`);
 
     } catch (error: any) {
       alert("Purchase failed: " + error.message);
@@ -128,9 +119,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F0F9FF] text-gray-900 pb-24">
-      
-      {/* Eye-Catching Novida Header */}
+    <div className="min-h-screen bg-[#f0f9ff] text-gray-900 pb-24">
       <div className="bg-gradient-to-r from-blue-700 to-cyan-500 p-6 pt-10 rounded-b-[40px] shadow-lg flex justify-between items-center mb-6">
         <div>
           <h1 className="text-3xl font-black text-white tracking-tight flex items-center gap-2">
@@ -151,23 +140,18 @@ export default function HomePage() {
           {products.map((product) => {
             const isPurchased = purchasedIds.includes(product.id);
             let btnText = isPurchased ? "Purchased" : "Invest Now";
-            let btnClass = isPurchased 
-              ? "bg-gray-200 text-gray-400 cursor-not-allowed" 
-              : "bg-[#FF6B00] hover:bg-[#E65A00] text-white shadow-lg shadow-[#FF6B00]/30";
+            let btnClass = isPurchased ? "bg-gray-200 text-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/30";
 
             return (
               <div key={product.id} className="bg-white border border-gray-100 rounded-3xl overflow-hidden flex flex-row shadow-[0_8px_30px_rgba(0,0,0,0.04)] h-[150px]">
-                
-                {/* Image Section */}
                 <div className="w-[40%] relative h-full bg-blue-50">
                   <img src={product.img} alt={product.name} className="w-full h-full object-cover" />
                   <div className="absolute inset-0 bg-gradient-to-r from-transparent to-white"></div>
-                  <div className="absolute top-3 left-3 bg-[#FF6B00] text-white text-[10px] font-bold px-2.5 py-1 rounded-md shadow-lg">
+                  <div className="absolute top-3 left-3 bg-blue-600 text-white text-[10px] font-bold px-2.5 py-1 rounded-md shadow-lg">
                     {product.cycle}
                   </div>
                 </div>
 
-                {/* Details Section */}
                 <div className="w-[60%] p-4 flex flex-col justify-between z-10">
                   <div>
                     <h3 className="text-gray-900 font-black text-[16px] leading-tight mb-1">{product.name}</h3>
@@ -186,11 +170,7 @@ export default function HomePage() {
                     </div>
                   </div>
 
-                  <button 
-                    onClick={() => handlePurchase(product)}
-                    disabled={isPurchased || isProcessing}
-                    className={`w-full font-bold py-2.5 rounded-xl text-xs transition-all ${btnClass}`}
-                  >
+                  <button onClick={() => handlePurchase(product)} disabled={isPurchased || isProcessing} className={`w-full font-bold py-2.5 rounded-xl text-xs transition-all ${btnClass}`}>
                     {isProcessing ? "Wait..." : btnText}
                   </button>
                 </div>
