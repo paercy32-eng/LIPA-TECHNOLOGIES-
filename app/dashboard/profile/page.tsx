@@ -18,8 +18,10 @@ export default function ProfilePage() {
   const [boundNumber, setBoundNumber] = useState("");
   const [displayName, setDisplayName] = useState("");
   
+  // Modals State
   const [isDepositOpen, setIsDepositOpen] = useState(false);
   const [depositAmount, setDepositAmount] = useState("");
+  const [depositPhone, setDepositPhone] = useState(""); // NEW: Number to pay from
   const [isDepositing, setIsDepositing] = useState(false);
   const [depositStatus, setDepositStatus] = useState("");
   
@@ -33,17 +35,15 @@ export default function ProfilePage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [message, setMessage] = useState({ text: "", isError: false });
 
-  const numericAmount = Number(depositAmount) || 0;
-  const fee = numericAmount * 0.02;
-  const totalToPay = numericAmount + fee;
-
   useEffect(() => {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user && user.email) {
         const rawPhone = user.email.split('@')[0];
         const phone = rawPhone.startsWith("256") ? rawPhone.substring(3) : rawPhone;
+        
         setUserPhone(phone);
+        setDepositPhone(phone); // Pre-fill with their number
         setUserId(user.id);
 
         const { data: profile } = await supabase.from("profiles").select("display_name, full_name, bound_number").eq("id", user.id).single();
@@ -65,16 +65,20 @@ export default function ProfilePage() {
   }, [router]);
 
   const handleDeposit = async () => {
-    if (numericAmount < 15000) return setMessage({ text: "Minimum deposit is 15,000 UGX", isError: true });
+    const amount = Number(depositAmount);
+    // Minimum set to 500 for testing
+    if (amount < 500) return setMessage({ text: "Minimum deposit is 500 UGX", isError: true });
+    if (!depositPhone || depositPhone.length < 9) return setMessage({ text: "Please enter a valid phone number", isError: true });
 
     setIsDepositing(true);
-    setDepositStatus("Initiating PesaJet prompt...");
+    setMessage({ text: "", isError: false });
+    setDepositStatus("Sending prompt to your phone...");
 
     try {
       const response = await fetch("/api/deposit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount: numericAmount, phone: userPhone, userId })
+        body: JSON.stringify({ amount, phone: depositPhone, userId })
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
@@ -93,11 +97,11 @@ export default function ProfilePage() {
             setIsDepositOpen(false);
             setIsDepositing(false);
             setDepositAmount("");
-            window.location.reload(); // Reload to refresh balance
+            window.location.reload(); 
           }, 2000);
         } else if (statusData.status === "FAILED" || statusData.status === "EXPIRED") {
           clearInterval(interval);
-          setDepositStatus("Payment failed or expired.");
+          setDepositStatus("Payment failed or cancelled.");
           setIsDepositing(false);
         }
       }, 3000);
@@ -106,6 +110,61 @@ export default function ProfilePage() {
       setMessage({ text: error.message, isError: true });
       setIsDepositing(false);
       setDepositStatus("");
+    }
+  };
+
+  const handleBindSubmit = async () => {
+    if (!bindName || !bindPhone) return setMessage({ text: "Please fill all fields", isError: true });
+    if (bindPhone.length < 9) return setMessage({ text: "Invalid phone number", isError: true });
+
+    setIsProcessing(true);
+    const { error } = await supabase.from("profiles").update({ full_name: bindName, bound_number: bindPhone }).eq("id", userId);
+    setIsProcessing(false);
+    
+    if (error) setMessage({ text: error.message, isError: true });
+    else {
+      setFullName(bindName);
+      setBoundNumber(bindPhone);
+      setIsBindOpen(false);
+      alert("Account bound successfully!");
+    }
+  };
+
+  const handleWithdrawSubmit = async () => {
+    if (!boundNumber) {
+      setIsWithdrawOpen(false);
+      return alert("You must bind an account before withdrawing.");
+    }
+
+    const amount = Number(withdrawAmount);
+    if (amount < 3000) return setMessage({ text: "Minimum withdrawal is 3,000 UGX", isError: true });
+    if (amount > Number(balance)) return setMessage({ text: "Insufficient balance", isError: true });
+
+    setIsProcessing(true);
+    setMessage({ text: "", isError: false });
+
+    try {
+      const { count: activeInv } = await supabase.from("investments").select("*", { count: 'exact', head: true }).eq("user_id", userId).eq("status", "ACTIVE");
+      if (activeInv === 0) { setIsProcessing(false); return setMessage({ text: "You must have an active VIP to withdraw.", isError: true }); }
+
+      const now = new Date();
+      const eatTime = new Intl.DateTimeFormat('en-US', { timeZone: 'Africa/Kampala', hour: 'numeric', hour12: false }).format(now);
+      const currentHour = parseInt(eatTime);
+      if (currentHour < 9 || currentHour >= 18) { setIsProcessing(false); return setMessage({ text: "Withdrawals allowed between 9:00 AM and 6:00 PM.", isError: true }); }
+
+      const newBalance = Number(balance) - amount;
+      await supabase.from("balances").update({ available: newBalance }).eq("user_id", userId);
+      await supabase.from("transactions").insert({ user_id: userId, type: "WITHDRAWAL", amount: amount, status: "PENDING" });
+
+      setBalance(newBalance.toString());
+      setIsWithdrawOpen(false);
+      setWithdrawAmount("");
+      alert(`Withdrawal submitted! You will receive UGX ${(amount * 0.85).toLocaleString()} to ${boundNumber}.`);
+
+    } catch (error: any) {
+      setMessage({ text: error.message, isError: true });
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -196,20 +255,10 @@ export default function ProfilePage() {
             ) : (
               <>
                 <label className="block text-[10px] font-bold tracking-widest text-gray-500 uppercase mb-1">Amount (UGX)</label>
-                <input type="number" placeholder="Minimum 15,000" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-bold text-lg mb-4 focus:outline-none focus:border-blue-500" />
+                <input type="number" placeholder="Minimum 500" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-bold text-lg mb-4 focus:outline-none focus:border-blue-500" />
                 
-                {numericAmount > 0 && (
-                  <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6">
-                    <div className="flex justify-between items-center mb-2">
-                      <p className="text-xs text-gray-600">TavuPay Fee (2%):</p>
-                      <p className="text-sm font-bold text-red-500">+ UGX {fee.toLocaleString()}</p>
-                    </div>
-                    <div className="border-t border-blue-200 pt-2 flex justify-between items-center">
-                      <p className="text-xs font-bold text-blue-800">Total to Pay:</p>
-                      <p className="text-lg font-black text-blue-700">UGX {totalToPay.toLocaleString()}</p>
-                    </div>
-                  </div>
-                )}
+                <label className="block text-[10px] font-bold tracking-widest text-gray-500 uppercase mb-1">Phone Number to Pay From</label>
+                <input type="tel" placeholder="e.g. 0700123456" value={depositPhone} onChange={(e) => setDepositPhone(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-bold text-lg mb-6 focus:outline-none focus:border-blue-500" />
 
                 <button onClick={handleDeposit} disabled={isDepositing} className="w-full font-bold py-4 rounded-xl text-white bg-blue-600 hover:bg-blue-700">
                   {isDepositing ? 'Processing...' : 'Confirm Deposit'}
@@ -220,7 +269,7 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* BIND & WITHDRAW MODALS (Keep the same logic as before) */}
+      {/* BIND MODAL */}
       {isBindOpen && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl">
@@ -228,32 +277,41 @@ export default function ProfilePage() {
               <h3 className="text-xl font-bold text-gray-900">Bind Account</h3>
               <button onClick={() => setIsBindOpen(false)} className="text-gray-400 hover:text-gray-900">✕</button>
             </div>
-            <input type="text" placeholder="Full Names" value={bindName} onChange={(e) => setBindName(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl mb-4" />
+            <input type="text" placeholder="Full Names (as on Mobile Money)" value={bindName} onChange={(e) => setBindName(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl mb-4" />
             <input type="tel" placeholder="Mobile Money Number" value={bindPhone} onChange={(e) => setBindPhone(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl mb-6" />
-            <button onClick={async () => {
-              await supabase.from("profiles").update({ full_name: bindName, bound_number: bindPhone }).eq("id", userId);
-              setBoundNumber(bindPhone); setIsBindOpen(false); alert("Account bound!");
-            }} className="w-full font-bold py-4 rounded-xl text-white bg-blue-600">Save Account</button>
+            <button onClick={handleBindSubmit} disabled={isProcessing} className="w-full font-bold py-4 rounded-xl text-white bg-blue-600">Save Account</button>
           </div>
         </div>
       )}
 
+      {/* WITHDRAW MODAL */}
       {isWithdrawOpen && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl">
-            <h3 className="text-xl font-bold text-gray-900 mb-4">Withdraw Funds</h3>
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-bold text-gray-900">Withdraw Funds</h3>
+              <button onClick={() => setIsWithdrawOpen(false)} className="text-gray-400 hover:text-gray-900">✕</button>
+            </div>
+            
+            {message.text && <div className={`text-center p-3 mb-4 rounded-xl text-sm font-medium border ${message.isError ? 'bg-red-50 text-red-600 border-red-100' : 'bg-green-50 text-green-600 border-green-100'}`}>{message.text}</div>}
+
             {!boundNumber ? (
-               <p className="text-sm text-gray-500 text-center">You must bind an account first.</p>
+              <div className="text-center py-6">
+                <p className="text-gray-500 text-sm mb-4">You must bind an account before you can withdraw.</p>
+                <button onClick={() => { setIsWithdrawOpen(false); setIsBindOpen(true); }} className="bg-blue-600 text-white font-bold py-3 px-6 rounded-xl">Bind Account Now</button>
+              </div>
             ) : (
               <>
-                <input type="number" placeholder="Minimum 3,000" value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl mb-4" />
-                <button onClick={async () => {
-                  const amt = Number(withdrawAmount);
-                  const newBal = Number(balance) - amt;
-                  await supabase.from("balances").update({ available: newBal }).eq("user_id", userId);
-                  await supabase.from("transactions").insert({ user_id: userId, type: "WITHDRAWAL", amount: amt, status: "PENDING" });
-                  setBalance(newBal.toString()); setIsWithdrawOpen(false); alert("Withdrawal requested!");
-                }} className="w-full font-bold py-4 rounded-xl text-white bg-blue-600">Request Withdrawal</button>
+                <div className="bg-blue-50 border border-blue-100 p-3 rounded-xl mb-4">
+                  <p className="text-xs text-blue-800">Withdrawing to: <b>{fullName}</b> ({boundNumber}). A fee of <b>15%</b> applies.</p>
+                </div>
+                <label className="block text-[10px] font-bold tracking-widest text-gray-500 uppercase mb-1">Amount (UGX)</label>
+                <input type="number" placeholder="Minimum 3,000" value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-bold text-lg mb-2" />
+                <div className="flex justify-between items-center mb-6 px-1">
+                  <p className="text-xs text-gray-500">Available: UGX {Number(balance).toLocaleString()}</p>
+                  {withdrawAmount && <p className="text-xs text-green-600 font-bold">You Receive: UGX {(Number(withdrawAmount) * 0.85).toLocaleString()}</p>}
+                </div>
+                <button onClick={handleWithdrawSubmit} disabled={isProcessing} className="w-full font-bold py-4 rounded-xl text-white bg-blue-600">{isProcessing ? 'Processing...' : 'Request Withdrawal'}</button>
               </>
             )}
           </div>
