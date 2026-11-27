@@ -27,25 +27,26 @@ export async function POST(req: Request) {
     if (event === "payment.completed") {
       const { data: tx } = await supabase.from("transactions").select("*").eq("id", reference).single();
       
-      if (!tx || tx.status === "COMPLETED") return NextResponse.json({ received: true });
+      if (!tx) return NextResponse.json({ received: true });
 
-      // Mark completed & credit balance
+      // --- THE LOCK ---
       const { data: updatedTx } = await supabase
-  .from("transactions")
-  .update({ status: "COMPLETED" })
-  .eq("id", reference)
-  .eq("status", "PENDING") // <--- This lock prevents double crediting
-  .select();
+        .from("transactions")
+        .update({ status: "COMPLETED" })
+        .eq("id", reference)
+        .eq("status", "PENDING") // Only update if it is STILL pending
+        .select();
 
-if (!updatedTx || updatedTx.length === 0) {
-  // The app already credited this! Abort to prevent double commission.
-  return NextResponse.json({ received: true });
-}
-      
+      // If updatedTx is empty, it means the app polling already credited it!
+      if (!updatedTx || updatedTx.length === 0) {
+        return NextResponse.json({ received: true });
+      }
+
+      // 3. Credit balance
       const { data: bal } = await supabase.from("balances").select("available").eq("user_id", tx.user_id).single();
       if (bal) await supabase.from("balances").update({ available: Number(bal.available) + Number(tx.amount) }).eq("user_id", tx.user_id);
 
-      // 3. Referral Commission
+      // 4. Referral Commission
       const { count: depCount } = await supabase.from("transactions").select("*", { count: 'exact', head: true }).eq("user_id", tx.user_id).eq("type", "DEPOSIT").eq("status", "COMPLETED");
       
       if (depCount === 1) {
@@ -57,6 +58,7 @@ if (!updatedTx || updatedTx.length === 0) {
           if (!refId) break;
           const comm = Number(tx.amount) * rates[level - 1];
           const { data: refBal } = await supabase.from("balances").select("available, total_commission").eq("user_id", refId).single();
+          
           if (refBal) {
             await supabase.from("balances").update({ available: Number(refBal.available) + comm, total_commission: Number(refBal.total_commission) + comm }).eq("user_id", refId);
             await supabase.from("transactions").insert({ user_id: refId, type: "COMMISSION", amount: comm, status: "COMPLETED" });
