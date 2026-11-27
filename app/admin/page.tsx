@@ -15,24 +15,21 @@ export default function AdminPanel() {
   const [isAdmin, setIsAdmin] = useState(false);
 
   const [users, setUsers] = useState<any[]>([]);
-  const [searchQuery, setSearchQuery] = useState(""); // NEW: Search State
+  const [searchQuery, setSearchQuery] = useState(""); 
   
   const [deposits, setDeposits] = useState<any[]>([]);
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [stats, setStats] = useState({ totalUsers: 0, totalDeposited: 0, totalInvested: 0 });
 
-  // Edit Product State
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [editPrice, setEditPrice] = useState("");
   const [editDaily, setEditDaily] = useState("");
 
-  // View Referrals State
   const [viewingReferralsFor, setViewingReferralsFor] = useState<string | null>(null);
   const [userReferrals, setUserReferrals] = useState<any[]>([]);
   const [isFetchingRefs, setIsFetchingRefs] = useState(false);
 
-  // Grant Product State
   const [grantingUser, setGrantingUser] = useState<any>(null);
   const [grantProductId, setGrantProductId] = useState("");
   const [grantedIds, setGrantedIds] = useState<string[]>([]);
@@ -53,7 +50,7 @@ export default function AdminPanel() {
   }, []);
 
   const fetchAllData = async () => {
-    // FETCH USERS WITH BALANCES AND ACTIVE INVESTMENTS
+    // Fetch profiles and balances
     const { data: profiles } = await supabase
       .from("profiles")
       .select("*, balances(available), investments(status)")
@@ -91,7 +88,7 @@ export default function AdminPanel() {
       const ids = refs.map(r => r.referee_id);
       const { data: profiles } = await supabase.from("profiles").select("id, phone, display_name").in("id", ids);
       
-      // UPDATED: Check for COMPLETED DEPOSITS instead of just active products
+      // Only active if they have a COMPLETED deposit
       const { data: userDeposits } = await supabase
         .from("transactions")
         .select("user_id")
@@ -108,7 +105,7 @@ export default function AdminPanel() {
           name: p?.display_name || p?.phone || "Unknown",
           phone: p?.phone || "N/A",
           level: r.level,
-          isActive: activeUserIds.includes(r.referee_id) // Active means they deposited
+          isActive: activeUserIds.includes(r.referee_id)
         };
       }).sort((a, b) => a.level - b.level);
 
@@ -272,7 +269,6 @@ export default function AdminPanel() {
         .single();
 
       if (error) throw error;
-
       if (!data) throw new Error("Product was not found or was not updated.");
 
       setProducts(prev => prev.map(p => p.id === data.id ? data : p));
@@ -281,12 +277,10 @@ export default function AdminPanel() {
       alert("Product successfully updated!");
 
     } catch (err: any) {
-      console.error("Product update error:", err);
       alert("Failed to update product: " + err.message);
     }
   };
 
-  // Filter Users based on search query
   const filteredUsers = users.filter(u => 
     u.phone.includes(searchQuery) || 
     (u.full_name && u.full_name.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -319,21 +313,22 @@ export default function AdminPanel() {
 
         {activeTab === "USERS" && (
           <div className="space-y-3">
-            {/* SEARCH BAR */}
             <div className="relative mb-2">
-              <input 
-                type="text" 
-                placeholder="Search by phone or name..." 
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full px-4 py-3 pl-10 bg-white border border-gray-200 rounded-xl text-gray-900 text-sm focus:outline-none focus:border-blue-500 shadow-sm"
-              />
+              <input type="text" placeholder="Search by phone or name..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full px-4 py-3 pl-10 bg-white border border-gray-200 rounded-xl text-gray-900 text-sm focus:outline-none focus:border-blue-500 shadow-sm" />
               <svg className="absolute left-3 top-3.5 text-gray-400" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
             </div>
 
             {filteredUsers.map((user) => {
-              const userBalance = Number(user.balances?.available ?? user.balances?.[0]?.available ?? 0);
-              // Check if they have ANY active investment
+              // BULLETPROOF BALANCE PARSER
+              let userBalance = 0;
+              if (user.balances) {
+                if (Array.isArray(user.balances)) {
+                  userBalance = Number(user.balances[0]?.available || 0);
+                } else {
+                  userBalance = Number(user.balances.available || 0);
+                }
+              }
+
               const hasActiveProduct = user.investments?.some((inv: any) => inv.status === "ACTIVE");
               
               return (
@@ -343,8 +338,6 @@ export default function AdminPanel() {
                       <p className="font-bold text-gray-900">{user.phone}</p>
                       <p className="text-[10px] text-gray-500">Name: {user.full_name || "Not bound"}</p>
                     </div>
-                    
-                    {/* UPDATED BADGE LOGIC: Only show if hasActiveProduct, unless banned */}
                     {user.status === 'BANNED' ? (
                        <span className="text-[10px] px-2 py-1 rounded-md font-bold bg-red-50 text-red-600">BANNED</span>
                     ) : hasActiveProduct ? (
@@ -459,11 +452,7 @@ export default function AdminPanel() {
                     disabled={alreadyHas}
                     onClick={() => setGrantProductId(p.id)}
                     className={`w-full text-left p-3 rounded-xl border transition-all ${
-                      alreadyHas
-                        ? "bg-gray-100 border-gray-200 opacity-60 cursor-not-allowed"
-                        : selected
-                        ? "bg-blue-50 border-blue-500"
-                        : "bg-gray-50 border-gray-200"
+                      alreadyHas ? "bg-gray-100 border-gray-200 opacity-60 cursor-not-allowed" : selected ? "bg-blue-50 border-blue-500" : "bg-gray-50 border-gray-200"
                     }`}
                   >
                     <div className="flex justify-between items-center">
@@ -478,11 +467,7 @@ export default function AdminPanel() {
               })}
             </div>
 
-            <button
-              onClick={handleGrantProduct}
-              disabled={isGranting || !grantProductId}
-              className="w-full font-bold py-4 rounded-xl text-white bg-green-600 disabled:opacity-50"
-            >
+            <button onClick={handleGrantProduct} disabled={isGranting || !grantProductId} className="w-full font-bold py-4 rounded-xl text-white bg-green-600 disabled:opacity-50">
               {isGranting ? "Granting..." : "Grant Product"}
             </button>
           </div>
