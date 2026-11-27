@@ -30,7 +30,17 @@ export async function POST(req: Request) {
       if (!tx || tx.status === "COMPLETED") return NextResponse.json({ received: true });
 
       // Mark completed & credit balance
-      await supabase.from("transactions").update({ status: "COMPLETED" }).eq("id", reference);
+      const { data: updatedTx } = await supabase
+  .from("transactions")
+  .update({ status: "COMPLETED" })
+  .eq("id", reference)
+  .eq("status", "PENDING") // <--- This lock prevents double crediting
+  .select();
+
+if (!updatedTx || updatedTx.length === 0) {
+  // The app already credited this! Abort to prevent double commission.
+  return NextResponse.json({ received: true });
+}
       
       const { data: bal } = await supabase.from("balances").select("available").eq("user_id", tx.user_id).single();
       if (bal) await supabase.from("balances").update({ available: Number(bal.available) + Number(tx.amount) }).eq("user_id", tx.user_id);
