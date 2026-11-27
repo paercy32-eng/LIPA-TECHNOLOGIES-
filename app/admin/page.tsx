@@ -15,6 +15,8 @@ export default function AdminPanel() {
   const [isAdmin, setIsAdmin] = useState(false);
 
   const [users, setUsers] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState(""); // NEW: Search State
+  
   const [deposits, setDeposits] = useState<any[]>([]);
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
@@ -51,7 +53,11 @@ export default function AdminPanel() {
   }, []);
 
   const fetchAllData = async () => {
-    const { data: profiles } = await supabase.from("profiles").select("*, balances(available)").order("created_at", { ascending: false });
+    // FETCH USERS WITH BALANCES AND ACTIVE INVESTMENTS
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("*, balances(available), investments(status)")
+      .order("created_at", { ascending: false });
     if (profiles) setUsers(profiles);
 
     const { data: dep } = await supabase.from("transactions").select("*, profiles(phone)").eq("type", "DEPOSIT").eq("status", "PENDING").order("created_at", { ascending: false });
@@ -84,9 +90,16 @@ export default function AdminPanel() {
     if (refs && refs.length > 0) {
       const ids = refs.map(r => r.referee_id);
       const { data: profiles } = await supabase.from("profiles").select("id, phone, display_name").in("id", ids);
-      const { data: activeInvs } = await supabase.from("investments").select("user_id").in("user_id", ids).eq("status", "ACTIVE");
+      
+      // UPDATED: Check for COMPLETED DEPOSITS instead of just active products
+      const { data: userDeposits } = await supabase
+        .from("transactions")
+        .select("user_id")
+        .in("user_id", ids)
+        .eq("type", "DEPOSIT")
+        .eq("status", "COMPLETED");
 
-      const activeUserIds = activeInvs?.map(i => i.user_id) || [];
+      const activeUserIds = userDeposits?.map(d => d.user_id) || [];
 
       const merged = refs.map(r => {
         const p = profiles?.find(prof => prof.id === r.referee_id);
@@ -95,7 +108,7 @@ export default function AdminPanel() {
           name: p?.display_name || p?.phone || "Unknown",
           phone: p?.phone || "N/A",
           level: r.level,
-          isActive: activeUserIds.includes(r.referee_id)
+          isActive: activeUserIds.includes(r.referee_id) // Active means they deposited
         };
       }).sort((a, b) => a.level - b.level);
 
@@ -127,13 +140,11 @@ export default function AdminPanel() {
     fetchAllData();
   };
 
-  // ---- GRANT PRODUCT ----
   const openGrantProduct = async (user: any) => {
     setGrantingUser(user);
     setGrantProductId("");
     setGrantedIds([]);
 
-    // Find which products this user already has active
     const { data: invs } = await supabase
       .from("investments")
       .select("product_id")
@@ -262,18 +273,11 @@ export default function AdminPanel() {
 
       if (error) throw error;
 
-      if (!data) {
-        throw new Error("Product was not found or was not updated.");
-      }
+      if (!data) throw new Error("Product was not found or was not updated.");
 
-      setProducts(prev =>
-        prev.map(p => p.id === data.id ? data : p)
-      );
-
+      setProducts(prev => prev.map(p => p.id === data.id ? data : p));
       setEditingProduct(null);
-
       await fetchAllData();
-
       alert("Product successfully updated!");
 
     } catch (err: any) {
@@ -281,6 +285,12 @@ export default function AdminPanel() {
       alert("Failed to update product: " + err.message);
     }
   };
+
+  // Filter Users based on search query
+  const filteredUsers = users.filter(u => 
+    u.phone.includes(searchQuery) || 
+    (u.full_name && u.full_name.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
 
   if (isLoading) return <div className="min-h-screen bg-black text-white flex items-center justify-center">Verifying Admin...</div>;
   if (!isAdmin) return <div className="min-h-screen bg-black text-white flex items-center justify-center">Access Denied</div>;
@@ -309,8 +319,23 @@ export default function AdminPanel() {
 
         {activeTab === "USERS" && (
           <div className="space-y-3">
-            {users.map((user) => {
+            {/* SEARCH BAR */}
+            <div className="relative mb-2">
+              <input 
+                type="text" 
+                placeholder="Search by phone or name..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full px-4 py-3 pl-10 bg-white border border-gray-200 rounded-xl text-gray-900 text-sm focus:outline-none focus:border-blue-500 shadow-sm"
+              />
+              <svg className="absolute left-3 top-3.5 text-gray-400" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            </div>
+
+            {filteredUsers.map((user) => {
               const userBalance = Number(user.balances?.available ?? user.balances?.[0]?.available ?? 0);
+              // Check if they have ANY active investment
+              const hasActiveProduct = user.investments?.some((inv: any) => inv.status === "ACTIVE");
+              
               return (
                 <div key={user.id} className="bg-white border border-gray-100 p-4 rounded-2xl shadow-sm">
                   <div className="flex justify-between items-start mb-3">
@@ -318,7 +343,13 @@ export default function AdminPanel() {
                       <p className="font-bold text-gray-900">{user.phone}</p>
                       <p className="text-[10px] text-gray-500">Name: {user.full_name || "Not bound"}</p>
                     </div>
-                    <span className={`text-[10px] px-2 py-1 rounded-md font-bold ${user.status === 'BANNED' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>{user.status || 'ACTIVE'}</span>
+                    
+                    {/* UPDATED BADGE LOGIC: Only show if hasActiveProduct, unless banned */}
+                    {user.status === 'BANNED' ? (
+                       <span className="text-[10px] px-2 py-1 rounded-md font-bold bg-red-50 text-red-600">BANNED</span>
+                    ) : hasActiveProduct ? (
+                       <span className="text-[10px] px-2 py-1 rounded-md font-bold bg-green-50 text-green-600">ACTIVE</span>
+                    ) : null}
                   </div>
                   <div className="bg-gray-50 p-3 rounded-xl mb-4 flex justify-between items-center">
                     <p className="text-[10px] text-gray-500 font-bold uppercase">Balance</p>
@@ -482,7 +513,7 @@ export default function AdminPanel() {
                     <div className="text-right">
                       <span className="text-[10px] font-bold text-blue-600 block mb-1">Level {ref.level}</span>
                       <span className={`text-[9px] px-2 py-0.5 rounded-md font-bold uppercase tracking-wider ${ref.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-500'}`}>
-                        {ref.isActive ? "Active" : "Inactive"}
+                        {ref.isActive ? "Active (Deposited)" : "Inactive"}
                       </span>
                     </div>
                   </div>
