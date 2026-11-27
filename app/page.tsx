@@ -39,12 +39,19 @@ function AuthForm() {
     }
   }, [searchParams]);
 
-  // FIXED LOGIN BUG: Standardizes 07..., 7..., +256... to the exact same email
-  const formatPhoneToEmail = (phoneNumber: string) => {
+  // Generates ALL possible email formats for past/current users
+  const getEmailFormats = (phoneNumber: string) => {
     let clean = phoneNumber.trim().replace(/\D/g, ''); 
-    if (clean.startsWith('0')) clean = clean.substring(1); 
-    if (clean.startsWith('256')) clean = clean.substring(3); 
-    return `256${clean}@novida.co`; 
+    let noZero = clean.startsWith('0') ? clean.substring(1) : clean; 
+    let noCode = noZero.startsWith('256') ? noZero.substring(3) : noZero; 
+    
+    return [
+      `256${noCode}@novida.co`,    // Current Standard
+      `256${noCode}@lipa.co`,      // Old Domain
+      `256${clean}@novida.co`,     // Old Format (kept 0)
+      `256${clean}@lipa.co`,       // Oldest Format
+      `${noCode}@novida.co`,       // Just in case
+    ];
   };
 
   const handleAuth = async () => {
@@ -55,17 +62,34 @@ function AuthForm() {
     setIsLoading(true);
     setMessage({ text: isLogin ? "Signing in..." : "Creating account...", isError: false });
     
-    const email = formatPhoneToEmail(phone);
+    const possibleEmails = getEmailFormats(phone);
 
     try {
       if (isLogin) {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+        let loggedIn = false;
+        let authData = null;
 
-        const { data: profile } = await supabase.from("profiles").select("is_admin").eq("id", data.user.id).single();
+        // Try all formats until one works
+        for (const email of possibleEmails) {
+          const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+          if (!error && data.user) {
+            authData = data;
+            loggedIn = true;
+            break; // Stop looping if successful
+          }
+        }
+
+        if (!loggedIn || !authData) {
+          throw new Error("Invalid login credentials. Please check your phone number and password.");
+        }
+
+        const { data: profile } = await supabase.from("profiles").select("is_admin").eq("id", authData.user.id).single();
         if (profile?.is_admin) router.push("/admin");
         else router.push("/dashboard/home");
+
       } else {
+        // For new registrations, always use the current standard
+        const email = possibleEmails[0];
         const { error } = await supabase.auth.signUp({ 
           email, password, options: { data: { referred_by: referralCode || null } }
         });
