@@ -6,7 +6,105 @@ import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+
 const supabase = createClient(supabaseUrl, supabaseKey);
+
+// FETCH DATA IN BATCHES TO AVOID SUPABASE ROW LIMITS
+async function fetchAllRows(queryFactory: () => any) {
+  const allRows: any[] = [];
+  const batchSize = 1000;
+  let start = 0;
+
+  while (true) {
+    const { data, error } = await queryFactory().range(
+      start,
+      start + batchSize - 1
+    );
+
+    if (error) throw error;
+
+    const rows = data || [];
+
+    allRows.push(...rows);
+
+    if (rows.length < batchSize) break;
+
+    start += batchSize;
+  }
+
+  return allRows;
+}
+
+// GET ALL DESCENDANTS OF A USER ACROSS ALL LEVELS
+function getAllDescendants(
+  userId: string,
+  profiles: any[],
+  depositedUserIds: Set<string>
+) {
+  const childrenMap = new Map<string, any[]>();
+
+  profiles.forEach((profile) => {
+    if (!profile.referred_by) return;
+
+    const referrerId = String(profile.referred_by);
+
+    if (!childrenMap.has(referrerId)) {
+      childrenMap.set(referrerId, []);
+    }
+
+    childrenMap.get(referrerId)?.push(profile);
+  });
+
+  const descendants: any[] = [];
+  const visited = new Set<string>();
+
+  const queue: { user: any; level: number }[] = [];
+
+  const directChildren = childrenMap.get(String(userId)) || [];
+
+  directChildren.forEach((child) => {
+    queue.push({
+      user: child,
+      level: 1,
+    });
+  });
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+
+    if (!current) continue;
+
+    const currentId = String(current.user.id);
+
+    // Prevent duplicate users and referral loops
+    if (visited.has(currentId)) continue;
+
+    visited.add(currentId);
+
+    descendants.push({
+      id: current.user.id,
+      name:
+        current.user.display_name ||
+        current.user.full_name ||
+        current.user.phone ||
+        "Unknown",
+      phone: current.user.phone || "N/A",
+      level: current.level,
+      isActive: depositedUserIds.has(currentId),
+    });
+
+    const nextChildren = childrenMap.get(currentId) || [];
+
+    nextChildren.forEach((child) => {
+      queue.push({
+        user: child,
+        level: current.level + 1,
+      });
+    });
+  }
+
+  return descendants;
+}
 
 export default function AdminPanel() {
   const router = useRouter();
@@ -60,11 +158,15 @@ export default function AdminPanel() {
           return;
         }
 
-        const { data: profile } = await supabase
+        const { data: profile, error } = await supabase
           .from("profiles")
           .select("is_admin")
           .eq("id", user.id)
           .single();
+
+        if (error) {
+          console.error("Admin verification error:", error);
+        }
 
         if (profile?.is_admin) {
           setIsAdmin(true);
@@ -85,133 +187,140 @@ export default function AdminPanel() {
   const fetchAllData = async () => {
     try {
       // FETCH USERS
-      const { data: profiles, error: profilesError } =
-        await supabase
+      const profiles = await fetchAllRows(() =>
+        supabase
           .from("profiles")
           .select("*, balances(available), investments(status)")
-          .order("created_at", { ascending: false });
+          .order("created_at", { ascending: false })
+      );
 
-      if (profilesError) {
-        console.error("Users fetch error:", profilesError);
-      }
+      setUsers(profiles || []);
 
-      if (profiles) {
-        setUsers(profiles);
-      }
-
-      // FETCH REFERRAL RELATIONSHIPS FROM PROFILES
-      const { data: allProfiles, error: referralError } =
-        await supabase
+      // FETCH ALL REFERRAL RELATIONSHIPS
+      const allProfiles = await fetchAllRows(() =>
+        supabase
           .from("profiles")
-          .select("id, referred_by");
+          .select("id, referred_by, phone, display_name, full_name")
+      );
 
-      if (referralError) {
-        console.error("Referral fetch error:", referralError);
-      }
-
-      // FETCH COMPLETED DEPOSITS
-      const { data: completedDeposits, error: depositFetchError } =
-        await supabase
+      // FETCH ALL COMPLETED DEPOSITS
+      const completedDeposits = await fetchAllRows(() =>
+        supabase
           .from("transactions")
           .select("user_id")
           .eq("type", "DEPOSIT")
-          .eq("status", "COMPLETED");
-
-      if (depositFetchError) {
-        console.error("Completed deposits fetch error:", depositFetchError);
-      }
-
-      const depositedUserIds = new Set(
-        completedDeposits?.map((d) => d.user_id) || []
+          .eq("status", "COMPLETED")
       );
 
-      // CALCULATE REFERRAL COUNTS
+      const depositedUserIds = new Set<string>(
+        completedDeposits.map((d: any) => String(d.user_id))
+      );
+
+      // CREATE REFERRAL MAP
       const referralStats: Record<
         string,
         { total: number; active: number }
       > = {};
 
-      allProfiles?.forEach((profile) => {
-        if (!profile.referred_by) return;
+      // CALCULATE ALL LEVELS FOR EACH USER
+      allProfiles.forEach((profile: any) => {
+        const descendants = getAllDescendants(
+          profile.id,
+          allProfiles,
+          depositedUserIds
+        );
 
-        const referrerId = profile.referred_by;
-
-        if (!referralStats[referrerId]) {
-          referralStats[referrerId] = {
-            total: 0,
-            active: 0,
-          };
-        }
-
-        // TOTAL REFERRALS
-        referralStats[referrerId].total += 1;
-
-        // ACTIVE REFERRALS = COMPLETED DEPOSIT
-        if (depositedUserIds.has(profile.id)) {
-          referralStats[referrerId].active += 1;
-        }
+        referralStats[String(profile.id)] = {
+          total: descendants.length,
+          active: descendants.filter((r) => r.isActive).length,
+        };
       });
 
       setUserReferralStats(referralStats);
 
       // PENDING DEPOSITS
-      const { data: dep } = await supabase
+      const { data: dep, error: depError } = await supabase
         .from("transactions")
         .select("*, profiles(phone)")
         .eq("type", "DEPOSIT")
         .eq("status", "PENDING")
         .order("created_at", { ascending: false });
 
+      if (depError) {
+        console.error("Pending deposits error:", depError);
+      }
+
       if (dep) setDeposits(dep);
 
       // PENDING WITHDRAWALS
-      const { data: txs } = await supabase
+      const { data: txs, error: withdrawalError } = await supabase
         .from("transactions")
         .select("*, profiles(phone, full_name, bound_number)")
         .eq("type", "WITHDRAWAL")
         .eq("status", "PENDING")
         .order("created_at", { ascending: false });
 
+      if (withdrawalError) {
+        console.error("Pending withdrawals error:", withdrawalError);
+      }
+
       if (txs) setWithdrawals(txs);
 
       // PRODUCTS
-      const { data: prods } = await supabase
+      const { data: prods, error: productError } = await supabase
         .from("products")
         .select("*")
         .order("min_amount", { ascending: true });
 
+      if (productError) {
+        console.error("Products fetch error:", productError);
+      }
+
       if (prods) setProducts(prods);
 
       // TOTAL USERS
-      const { count: userCount } = await supabase
+      const { count: userCount, error: countError } = await supabase
         .from("profiles")
         .select("*", { count: "exact", head: true });
 
+      if (countError) {
+        console.error("User count error:", countError);
+      }
+
       // TOTAL DEPOSITED
-      const { data: deps } = await supabase
-        .from("transactions")
-        .select("amount")
-        .eq("type", "DEPOSIT")
-        .eq("status", "COMPLETED");
+      const allCompletedDeposits = await fetchAllRows(() =>
+        supabase
+          .from("transactions")
+          .select("amount")
+          .eq("type", "DEPOSIT")
+          .eq("status", "COMPLETED")
+      );
 
       // TOTAL ACTIVE INVESTMENTS
-      const { data: investments } = await supabase
-        .from("investments")
-        .select("amount")
-        .eq("status", "ACTIVE");
+      const { data: investments, error: investmentError } =
+        await supabase
+          .from("investments")
+          .select("amount")
+          .eq("status", "ACTIVE");
+
+      if (investmentError) {
+        console.error("Investment fetch error:", investmentError);
+      }
 
       setStats({
         totalUsers: userCount || 0,
 
         totalDeposited:
-          deps?.reduce(
-            (acc, curr) => acc + Number(curr.amount),
+          allCompletedDeposits.reduce(
+            (acc: number, curr: any) =>
+              acc + Number(curr.amount || 0),
             0
           ) || 0,
 
         totalInvested:
           investments?.reduce(
-            (acc, curr) => acc + Number(curr.amount),
+            (acc: number, curr: any) =>
+              acc + Number(curr.amount || 0),
             0
           ) || 0,
       });
@@ -220,53 +329,50 @@ export default function AdminPanel() {
     }
   };
 
-  // VIEW REFERRALS
+  // VIEW REFERRALS - ALL LEVELS
   const handleViewReferrals = async (userId: string) => {
     setViewingReferralsFor(userId);
     setIsFetchingRefs(true);
     setUserReferrals([]);
 
     try {
-      // FIND DIRECT REFERRALS USING referred_by
-      const { data: refs, error } = await supabase
-        .from("profiles")
-        .select("id, phone, display_name, full_name")
-        .eq("referred_by", userId);
+      // FETCH ALL USERS
+      const allProfiles = await fetchAllRows(() =>
+        supabase
+          .from("profiles")
+          .select("id, referred_by, phone, display_name, full_name")
+      );
 
-      if (error) throw error;
+      // FETCH ALL COMPLETED DEPOSITS
+      const completedDeposits = await fetchAllRows(() =>
+        supabase
+          .from("transactions")
+          .select("user_id")
+          .eq("type", "DEPOSIT")
+          .eq("status", "COMPLETED")
+      );
 
-      if (refs && refs.length > 0) {
-        const ids = refs.map((r) => r.id);
+      const depositedUserIds = new Set<string>(
+        completedDeposits.map((d: any) => String(d.user_id))
+      );
 
-        // CHECK COMPLETED DEPOSITS
-        const { data: deposits, error: depositError } =
-          await supabase
-            .from("transactions")
-            .select("user_id")
-            .in("user_id", ids)
-            .eq("type", "DEPOSIT")
-            .eq("status", "COMPLETED");
+      // GET ALL DESCENDANTS FROM LEVEL 1 AND BEYOND
+      const descendants = getAllDescendants(
+        userId,
+        allProfiles,
+        depositedUserIds
+      );
 
-        if (depositError) throw depositError;
+      // SORT BY LEVEL, THEN NAME
+      descendants.sort((a, b) => {
+        if (a.level !== b.level) {
+          return a.level - b.level;
+        }
 
-        const activeIds = new Set(
-          deposits?.map((d) => d.user_id) || []
-        );
+        return a.name.localeCompare(b.name);
+      });
 
-        const merged = refs.map((profile) => ({
-          id: profile.id,
-          name:
-            profile.display_name ||
-            profile.full_name ||
-            profile.phone ||
-            "Unknown",
-          phone: profile.phone || "N/A",
-          level: 1,
-          isActive: activeIds.has(profile.id),
-        }));
-
-        setUserReferrals(merged);
-      }
+      setUserReferrals(descendants);
     } catch (error: any) {
       console.error("View referrals error:", error);
       alert("Failed to load referrals: " + error.message);
@@ -352,13 +458,17 @@ export default function AdminPanel() {
     setGrantProductId("");
     setGrantedIds([]);
 
-    const { data: invs } = await supabase
+    const { data: invs, error } = await supabase
       .from("investments")
       .select("product_id")
       .eq("user_id", user.id)
       .eq("status", "ACTIVE");
 
-    setGrantedIds(invs?.map((i) => i.product_id) || []);
+    if (error) {
+      console.error("Grant product fetch error:", error);
+    }
+
+    setGrantedIds(invs?.map((i: any) => i.product_id) || []);
   };
 
   // GRANT PRODUCT
@@ -434,35 +544,46 @@ export default function AdminPanel() {
 
       if (transactionError) throw transactionError;
 
-      const { data: bal } = await supabase
+      const { data: bal, error: balanceError } = await supabase
         .from("balances")
         .select("available")
         .eq("user_id", userId)
         .single();
 
+      if (balanceError) throw balanceError;
+
       if (bal) {
-        await supabase
+        const { error: updateBalanceError } = await supabase
           .from("balances")
           .update({
             available: Number(bal.available) + amount,
           })
           .eq("user_id", userId);
+
+        if (updateBalanceError) throw updateBalanceError;
       }
 
-      const { count: depositCount } = await supabase
-        .from("transactions")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", userId)
-        .eq("type", "DEPOSIT")
-        .eq("status", "COMPLETED");
+      // CHECK COMPLETED DEPOSIT COUNT
+      const { count: depositCount, error: countError } =
+        await supabase
+          .from("transactions")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", userId)
+          .eq("type", "DEPOSIT")
+          .eq("status", "COMPLETED");
+
+      if (countError) throw countError;
 
       // FIRST COMPLETED DEPOSIT COMMISSION
       if (depositCount === 1) {
-        const { data: buyerProfile } = await supabase
-          .from("profiles")
-          .select("referred_by")
-          .eq("id", userId)
-          .single();
+        const { data: buyerProfile, error: buyerError } =
+          await supabase
+            .from("profiles")
+            .select("referred_by")
+            .eq("id", userId)
+            .single();
+
+        if (buyerError) throw buyerError;
 
         let currentReferrerId = buyerProfile?.referred_by;
 
@@ -474,37 +595,59 @@ export default function AdminPanel() {
           const commissionAmount =
             amount * commissionRates[level - 1];
 
-          const { data: refBal } = await supabase
-            .from("balances")
-            .select("available, total_commission")
-            .eq("user_id", currentReferrerId)
-            .single();
-
-          if (refBal) {
+          const { data: refBal, error: refBalanceError } =
             await supabase
               .from("balances")
-              .update({
-                available:
-                  Number(refBal.available) + commissionAmount,
-                total_commission:
-                  Number(refBal.total_commission) +
-                  commissionAmount,
-              })
-              .eq("user_id", currentReferrerId);
+              .select("available, total_commission")
+              .eq("user_id", currentReferrerId)
+              .single();
 
-            await supabase.from("transactions").insert({
-              user_id: currentReferrerId,
-              type: "COMMISSION",
-              amount: commissionAmount,
-              status: "COMPLETED",
-            });
+          if (refBalanceError) {
+            console.error("Referrer balance error:", refBalanceError);
+            break;
           }
 
-          const { data: nextProfile } = await supabase
-            .from("profiles")
-            .select("referred_by")
-            .eq("id", currentReferrerId)
-            .single();
+          if (refBal) {
+            const { error: commissionUpdateError } =
+              await supabase
+                .from("balances")
+                .update({
+                  available:
+                    Number(refBal.available) + commissionAmount,
+                  total_commission:
+                    Number(refBal.total_commission || 0) +
+                    commissionAmount,
+                })
+                .eq("user_id", currentReferrerId);
+
+            if (commissionUpdateError) {
+              throw commissionUpdateError;
+            }
+
+            const { error: transactionInsertError } =
+              await supabase.from("transactions").insert({
+                user_id: currentReferrerId,
+                type: "COMMISSION",
+                amount: commissionAmount,
+                status: "COMPLETED",
+              });
+
+            if (transactionInsertError) {
+              throw transactionInsertError;
+            }
+          }
+
+          const { data: nextProfile, error: nextProfileError } =
+            await supabase
+              .from("profiles")
+              .select("referred_by")
+              .eq("id", currentReferrerId)
+              .single();
+
+          if (nextProfileError) {
+            console.error("Next referrer fetch error:", nextProfileError);
+            break;
+          }
 
           currentReferrerId = nextProfile?.referred_by;
         }
@@ -569,19 +712,29 @@ export default function AdminPanel() {
       return;
     }
 
-    const { data: bal } = await supabase
+    const { data: bal, error: balanceError } = await supabase
       .from("balances")
       .select("available")
       .eq("user_id", userId)
       .single();
 
+    if (balanceError) {
+      alert("Failed to fetch balance: " + balanceError.message);
+      return;
+    }
+
     if (bal) {
-      await supabase
+      const { error: updateError } = await supabase
         .from("balances")
         .update({
           available: Number(bal.available) + Number(amount),
         })
         .eq("user_id", userId);
+
+      if (updateError) {
+        alert("Refund error: " + updateError.message);
+        return;
+      }
     }
 
     await fetchAllData();
@@ -624,6 +777,7 @@ export default function AdminPanel() {
         .single();
 
       if (error) throw error;
+
       if (!data) {
         throw new Error("Product was not found or was not updated.");
       }
@@ -801,8 +955,10 @@ export default function AdminPanel() {
                 (inv: any) => inv.status === "ACTIVE"
               );
 
-              // REFERRALS
-              const referralStats = userReferralStats[user.id] || {
+              // ALL-LEVEL REFERRALS
+              const referralStats = userReferralStats[
+                String(user.id)
+              ] || {
                 total: 0,
                 active: 0,
               };
@@ -973,7 +1129,7 @@ export default function AdminPanel() {
                       handleApproveDeposit(
                         d.id,
                         d.user_id,
-                        d.amount
+                        Number(d.amount)
                       )
                     }
                     className="flex-1 bg-green-600 text-white font-bold py-2 rounded-xl text-sm"
@@ -1044,7 +1200,7 @@ export default function AdminPanel() {
                       handleRejectWithdrawal(
                         w.id,
                         w.user_id,
-                        w.amount
+                        Number(w.amount)
                       )
                     }
                     className="flex-1 bg-red-50 text-red-600 font-bold py-2 rounded-xl text-sm border border-red-100"
@@ -1247,7 +1403,10 @@ export default function AdminPanel() {
               </h3>
 
               <button
-                onClick={() => setViewingReferralsFor(null)}
+                onClick={() => {
+                  setViewingReferralsFor(null);
+                  setUserReferrals([]);
+                }}
                 className="text-gray-400 hover:text-gray-900 text-xl"
               >
                 ✕
@@ -1293,9 +1452,9 @@ export default function AdminPanel() {
                   This user has no referrals yet.
                 </div>
               ) : (
-                userReferrals.map((ref, idx) => (
+                userReferrals.map((ref) => (
                   <div
-                    key={idx}
+                    key={ref.id}
                     className="bg-gray-50 border border-gray-100 p-3 rounded-xl flex justify-between items-center"
                   >
 
