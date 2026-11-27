@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -29,7 +28,6 @@ export default function AdminPanel() {
     totalInvested: 0,
   });
 
-  // Referral statistics for each user
   const [userReferralStats, setUserReferralStats] = useState<
     Record<string, { total: number; active: number }>
   >({});
@@ -49,72 +47,94 @@ export default function AdminPanel() {
   const [grantedIds, setGrantedIds] = useState<string[]>([]);
   const [isGranting, setIsGranting] = useState(false);
 
-  // ADMIN VERIFICATION
+  // VERIFY ADMIN
   useEffect(() => {
     const checkAdminAndFetch = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-      if (!user) {
+        if (!user) {
+          setIsLoading(false);
+          return;
+        }
+
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("is_admin")
+          .eq("id", user.id)
+          .single();
+
+        if (profile?.is_admin) {
+          setIsAdmin(true);
+          await fetchAllData();
+        }
+
         setIsLoading(false);
-        return;
+      } catch (error) {
+        console.error("Admin verification error:", error);
+        setIsLoading(false);
       }
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("is_admin")
-        .eq("id", user.id)
-        .single();
-
-      if (profile?.is_admin) {
-        setIsAdmin(true);
-        await fetchAllData();
-      }
-
-      setIsLoading(false);
     };
 
     checkAdminAndFetch();
   }, []);
 
-  // FETCH ALL ADMIN DATA
+  // FETCH ALL DATA
   const fetchAllData = async () => {
     try {
       // FETCH USERS
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("*, balances(available), investments(status)")
-        .order("created_at", { ascending: false });
+      const { data: profiles, error: profilesError } =
+        await supabase
+          .from("profiles")
+          .select("*, balances(available), investments(status)")
+          .order("created_at", { ascending: false });
+
+      if (profilesError) {
+        console.error("Users fetch error:", profilesError);
+      }
 
       if (profiles) {
         setUsers(profiles);
       }
 
-      // FETCH REFERRALS
-      const { data: allReferrals } = await supabase
-        .from("referrals")
-        .select("referrer_id, referee_id, level");
+      // FETCH REFERRAL RELATIONSHIPS FROM PROFILES
+      const { data: allProfiles, error: referralError } =
+        await supabase
+          .from("profiles")
+          .select("id, referred_by");
 
-      // FETCH USERS WHO HAVE COMPLETED DEPOSITS
-      const { data: completedDeposits } = await supabase
-        .from("transactions")
-        .select("user_id")
-        .eq("type", "DEPOSIT")
-        .eq("status", "COMPLETED");
+      if (referralError) {
+        console.error("Referral fetch error:", referralError);
+      }
+
+      // FETCH COMPLETED DEPOSITS
+      const { data: completedDeposits, error: depositFetchError } =
+        await supabase
+          .from("transactions")
+          .select("user_id")
+          .eq("type", "DEPOSIT")
+          .eq("status", "COMPLETED");
+
+      if (depositFetchError) {
+        console.error("Completed deposits fetch error:", depositFetchError);
+      }
 
       const depositedUserIds = new Set(
         completedDeposits?.map((d) => d.user_id) || []
       );
 
-      // CALCULATE REFERRAL STATISTICS
+      // CALCULATE REFERRAL COUNTS
       const referralStats: Record<
         string,
         { total: number; active: number }
       > = {};
 
-      allReferrals?.forEach((referral) => {
-        const referrerId = referral.referrer_id;
+      allProfiles?.forEach((profile) => {
+        if (!profile.referred_by) return;
+
+        const referrerId = profile.referred_by;
 
         if (!referralStats[referrerId]) {
           referralStats[referrerId] = {
@@ -123,9 +143,11 @@ export default function AdminPanel() {
           };
         }
 
+        // TOTAL REFERRALS
         referralStats[referrerId].total += 1;
 
-        if (depositedUserIds.has(referral.referee_id)) {
+        // ACTIVE REFERRALS = COMPLETED DEPOSIT
+        if (depositedUserIds.has(profile.id)) {
           referralStats[referrerId].active += 1;
         }
       });
@@ -165,7 +187,7 @@ export default function AdminPanel() {
         .from("profiles")
         .select("*", { count: "exact", head: true });
 
-      // TOTAL COMPLETED DEPOSITS
+      // TOTAL DEPOSITED
       const { data: deps } = await supabase
         .from("transactions")
         .select("amount")
@@ -194,7 +216,7 @@ export default function AdminPanel() {
           ) || 0,
       });
     } catch (error) {
-      console.error("Fetch admin data error:", error);
+      console.error("Fetch all data error:", error);
     }
   };
 
@@ -205,59 +227,49 @@ export default function AdminPanel() {
     setUserReferrals([]);
 
     try {
+      // FIND DIRECT REFERRALS USING referred_by
       const { data: refs, error } = await supabase
-        .from("referrals")
-        .select("referee_id, level")
-        .eq("referrer_id", userId);
+        .from("profiles")
+        .select("id, phone, display_name, full_name")
+        .eq("referred_by", userId);
 
       if (error) throw error;
 
       if (refs && refs.length > 0) {
-        const ids = refs.map((r) => r.referee_id);
-
-        // FETCH REFERRED USERS
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("id, phone, display_name, full_name")
-          .in("id", ids);
+        const ids = refs.map((r) => r.id);
 
         // CHECK COMPLETED DEPOSITS
-        const { data: userDeposits } = await supabase
-          .from("transactions")
-          .select("user_id")
-          .in("user_id", ids)
-          .eq("type", "DEPOSIT")
-          .eq("status", "COMPLETED");
+        const { data: deposits, error: depositError } =
+          await supabase
+            .from("transactions")
+            .select("user_id")
+            .in("user_id", ids)
+            .eq("type", "DEPOSIT")
+            .eq("status", "COMPLETED");
 
-        const activeUserIds = new Set(
-          userDeposits?.map((d) => d.user_id) || []
+        if (depositError) throw depositError;
+
+        const activeIds = new Set(
+          deposits?.map((d) => d.user_id) || []
         );
 
-        const merged = refs
-          .map((r) => {
-            const p = profiles?.find(
-              (prof) => prof.id === r.referee_id
-            );
-
-            return {
-              id: r.referee_id,
-              name:
-                p?.display_name ||
-                p?.full_name ||
-                p?.phone ||
-                "Unknown",
-              phone: p?.phone || "N/A",
-              level: r.level,
-              isActive: activeUserIds.has(r.referee_id),
-            };
-          })
-          .sort((a, b) => a.level - b.level);
+        const merged = refs.map((profile) => ({
+          id: profile.id,
+          name:
+            profile.display_name ||
+            profile.full_name ||
+            profile.phone ||
+            "Unknown",
+          phone: profile.phone || "N/A",
+          level: 1,
+          isActive: activeIds.has(profile.id),
+        }));
 
         setUserReferrals(merged);
       }
-    } catch (error) {
-      console.error("Referral fetch error:", error);
-      alert("Failed to load referrals.");
+    } catch (error: any) {
+      console.error("View referrals error:", error);
+      alert("Failed to load referrals: " + error.message);
     } finally {
       setIsFetchingRefs(false);
     }
@@ -307,7 +319,7 @@ export default function AdminPanel() {
     alert("Balance updated successfully!");
   };
 
-  // BAN / UNBAN USER
+  // BAN OR UNBAN USER
   const handleBanUser = async (
     userId: string,
     currentStatus: string
@@ -334,7 +346,7 @@ export default function AdminPanel() {
     await fetchAllData();
   };
 
-  // OPEN GRANT PRODUCT MODAL
+  // OPEN GRANT PRODUCT
   const openGrantProduct = async (user: any) => {
     setGrantingUser(user);
     setGrantProductId("");
@@ -444,6 +456,7 @@ export default function AdminPanel() {
         .eq("type", "DEPOSIT")
         .eq("status", "COMPLETED");
 
+      // FIRST COMPLETED DEPOSIT COMMISSION
       if (depositCount === 1) {
         const { data: buyerProfile } = await supabase
           .from("profiles")
@@ -453,7 +466,7 @@ export default function AdminPanel() {
 
         let currentReferrerId = buyerProfile?.referred_by;
 
-        const commissionRates = [0.20, 0.02, 0.01];
+        const commissionRates = [0.2, 0.02, 0.01];
 
         for (let level = 1; level <= 3; level++) {
           if (!currentReferrerId) break;
@@ -574,7 +587,7 @@ export default function AdminPanel() {
     await fetchAllData();
   };
 
-  // EDIT PRODUCT
+  // OPEN PRODUCT EDIT
   const openEditProduct = (prod: any) => {
     setEditingProduct(prod);
     setEditPrice(prod.min_amount.toString());
@@ -611,8 +624,9 @@ export default function AdminPanel() {
         .single();
 
       if (error) throw error;
-      if (!data)
+      if (!data) {
         throw new Error("Product was not found or was not updated.");
+      }
 
       setProducts((prev) =>
         prev.map((p) => (p.id === data.id ? data : p))
@@ -672,7 +686,7 @@ export default function AdminPanel() {
         </button>
       </div>
 
-      {/* NAVIGATION */}
+      {/* TABS */}
       <div className="flex space-x-2 p-4 overflow-x-auto">
         {[
           "OVERVIEW",
@@ -700,6 +714,7 @@ export default function AdminPanel() {
         {/* OVERVIEW */}
         {activeTab === "OVERVIEW" && (
           <div className="space-y-4">
+
             <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
               <p className="text-gray-400 text-xs font-bold uppercase">
                 Total Users
@@ -726,6 +741,7 @@ export default function AdminPanel() {
                 UGX {stats.totalInvested.toLocaleString()}
               </h2>
             </div>
+
           </div>
         )}
 
@@ -765,7 +781,7 @@ export default function AdminPanel() {
             </div>
 
             {filteredUsers.map((user) => {
-              // BALANCE PARSER
+              // BALANCE
               let userBalance = 0;
 
               if (user.balances) {
@@ -780,12 +796,12 @@ export default function AdminPanel() {
                 }
               }
 
-              // ACTIVE PRODUCT CHECK
+              // ACTIVE PRODUCT
               const hasActiveProduct = user.investments?.some(
                 (inv: any) => inv.status === "ACTIVE"
               );
 
-              // REFERRAL COUNTS
+              // REFERRALS
               const referralStats = userReferralStats[user.id] || {
                 total: 0,
                 active: 0,
@@ -797,7 +813,7 @@ export default function AdminPanel() {
                   className="bg-white border border-gray-100 p-4 rounded-2xl shadow-sm"
                 >
 
-                  {/* USER INFORMATION */}
+                  {/* USER */}
                   <div className="flex justify-between items-start mb-3">
                     <div>
                       <p className="font-bold text-gray-900">
@@ -812,21 +828,17 @@ export default function AdminPanel() {
                       </p>
                     </div>
 
-                    {/* STATUS BADGES */}
+                    {/* BADGES */}
                     <div className="flex flex-wrap justify-end gap-1">
                       {user.status === "BANNED" ? (
                         <span className="text-[10px] px-2 py-1 rounded-md font-bold bg-red-50 text-red-600">
                           BANNED
                         </span>
-                      ) : (
-                        <>
-                          {hasActiveProduct && (
-                            <span className="text-[10px] px-2 py-1 rounded-md font-bold bg-green-50 text-green-600">
-                              ACTIVE
-                            </span>
-                          )}
-                        </>
-                      )}
+                      ) : hasActiveProduct ? (
+                        <span className="text-[10px] px-2 py-1 rounded-md font-bold bg-green-50 text-green-600">
+                          ACTIVE
+                        </span>
+                      ) : null}
                     </div>
                   </div>
 
@@ -841,7 +853,7 @@ export default function AdminPanel() {
                     </p>
                   </div>
 
-                  {/* REFERRAL STATISTICS */}
+                  {/* REFERRAL COUNTS */}
                   <div className="grid grid-cols-2 gap-2 mb-3">
 
                     <div className="bg-cyan-50 border border-cyan-100 p-3 rounded-xl">
@@ -866,7 +878,7 @@ export default function AdminPanel() {
 
                   </div>
 
-                  {/* USER ACTIONS */}
+                  {/* BUTTONS */}
                   <div className="flex flex-wrap gap-2">
 
                     <button
@@ -922,11 +934,13 @@ export default function AdminPanel() {
         {/* DEPOSITS */}
         {activeTab === "DEPOSITS" && (
           <div className="space-y-3">
+
             {deposits.map((d) => (
               <div
                 key={d.id}
                 className="bg-white border border-gray-100 p-4 rounded-2xl shadow-sm"
               >
+
                 <div className="flex justify-between items-center mb-2">
                   <p className="font-bold text-gray-900">
                     {d.profiles?.phone}
@@ -982,17 +996,20 @@ export default function AdminPanel() {
                 No pending deposits.
               </div>
             )}
+
           </div>
         )}
 
         {/* WITHDRAWALS */}
         {activeTab === "WITHDRAWALS" && (
           <div className="space-y-3">
+
             {withdrawals.map((w) => (
               <div
                 key={w.id}
                 className="bg-white border border-gray-100 p-4 rounded-2xl shadow-sm"
               >
+
                 <div className="flex justify-between items-center mb-2">
                   <div>
                     <p className="font-bold text-gray-900">
@@ -1043,17 +1060,20 @@ export default function AdminPanel() {
                 No pending withdrawals.
               </div>
             )}
+
           </div>
         )}
 
         {/* PRODUCTS */}
         {activeTab === "PRODUCTS" && (
           <div className="space-y-3">
+
             {products.map((p) => (
               <div
                 key={p.id}
                 className="bg-white border border-gray-100 p-4 rounded-2xl flex justify-between items-center shadow-sm"
               >
+
                 <div>
                   <p className="font-bold text-gray-900">
                     {p.name}
@@ -1073,6 +1093,7 @@ export default function AdminPanel() {
                 >
                   Edit
                 </button>
+
               </div>
             ))}
 
@@ -1081,14 +1102,17 @@ export default function AdminPanel() {
                 No products found.
               </div>
             )}
+
           </div>
         )}
+
       </div>
 
       {/* EDIT PRODUCT MODAL */}
       {editingProduct && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl">
+
             <h3 className="text-xl font-bold text-gray-900 mb-4">
               Edit {editingProduct.name}
             </h3>
@@ -1128,6 +1152,7 @@ export default function AdminPanel() {
             >
               Cancel
             </button>
+
           </div>
         </div>
       )}
@@ -1205,6 +1230,7 @@ export default function AdminPanel() {
             >
               {isGranting ? "Granting..." : "Grant Product"}
             </button>
+
           </div>
         </div>
       )}
@@ -1214,7 +1240,7 @@ export default function AdminPanel() {
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl h-[75vh] flex flex-col">
 
-            {/* MODAL HEADER */}
+            {/* HEADER */}
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-xl font-bold text-gray-900">
                 User's Referrals
@@ -1251,6 +1277,7 @@ export default function AdminPanel() {
                     {userReferrals.filter((r) => r.isActive).length}
                   </p>
                 </div>
+
               </div>
             )}
 
@@ -1271,6 +1298,7 @@ export default function AdminPanel() {
                     key={idx}
                     className="bg-gray-50 border border-gray-100 p-3 rounded-xl flex justify-between items-center"
                   >
+
                     <div>
                       <p className="font-bold text-gray-900 text-sm">
                         {ref.name}
@@ -1298,11 +1326,12 @@ export default function AdminPanel() {
                           : "Inactive"}
                       </span>
                     </div>
+
                   </div>
                 ))
               )}
-            </div>
 
+            </div>
           </div>
         </div>
       )}
