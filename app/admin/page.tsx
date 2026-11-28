@@ -6,149 +6,27 @@ import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-
 const supabase = createClient(supabaseUrl, supabaseKey);
-
-// FETCH DATA IN BATCHES
-async function fetchAllRows(queryFactory: () => any) {
-  const allRows: any[] = [];
-  const batchSize = 1000;
-  let start = 0;
-
-  while (true) {
-    const { data, error } = await queryFactory().range(
-      start,
-      start + batchSize - 1
-    );
-
-    if (error) throw error;
-
-    const rows = data || [];
-    allRows.push(...rows);
-
-    if (rows.length < batchSize) break;
-
-    start += batchSize;
-  }
-
-  return allRows;
-}
-
-// GET ALL DESCENDANTS OF A USER
-function getAllDescendants(
-  userId: string,
-  profiles: any[],
-  depositedUserIds: Set<string>
-) {
-  const childrenMap = new Map<string, any[]>();
-
-  profiles.forEach((profile) => {
-    if (!profile.referred_by) return;
-
-    const referrerId = String(profile.referred_by);
-
-    if (!childrenMap.has(referrerId)) {
-      childrenMap.set(referrerId, []);
-    }
-
-    childrenMap.get(referrerId)?.push(profile);
-  });
-
-  const descendants: any[] = [];
-  const visited = new Set<string>();
-
-  const queue: { user: any; level: number }[] = [];
-
-  const directChildren = childrenMap.get(String(userId)) || [];
-
-  directChildren.forEach((child) => {
-    queue.push({
-      user: child,
-      level: 1,
-    });
-  });
-
-  while (queue.length > 0) {
-    const current = queue.shift();
-
-    if (!current) continue;
-
-    const currentId = String(current.user.id);
-
-    if (visited.has(currentId)) continue;
-
-    visited.add(currentId);
-
-    descendants.push({
-      id: current.user.id,
-      name:
-        current.user.display_name ||
-        current.user.full_name ||
-        current.user.phone ||
-        "Unknown",
-      phone: current.user.phone || "N/A",
-      level: current.level,
-      isActive: depositedUserIds.has(currentId),
-    });
-
-    const nextChildren = childrenMap.get(currentId) || [];
-
-    nextChildren.forEach((child) => {
-      queue.push({
-        user: child,
-        level: current.level + 1,
-      });
-    });
-  }
-
-  return descendants;
-}
 
 export default function AdminPanel() {
   const router = useRouter();
-
   const [activeTab, setActiveTab] = useState("OVERVIEW");
   const [isLoading, setIsLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
   const [users, setUsers] = useState<any[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
-
+  const [searchQuery, setSearchQuery] = useState(""); 
+  
   const [deposits, setDeposits] = useState<any[]>([]);
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
-
-  // OVERVIEW STATS
-  const [stats, setStats] = useState({
-    totalUsers: 0,
-    totalDeposited: 0,
-    totalInvested: 0,
-    totalWithdrawn: 0,
-  });
-
-  // INDIVIDUAL USER STATS
-  const [userFinancialStats, setUserFinancialStats] = useState<
-    Record<
-      string,
-      {
-        deposited: number;
-        invested: number;
-        commission: number;
-      }
-    >
-  >({});
-
-  const [userReferralStats, setUserReferralStats] = useState<
-    Record<string, { total: number; active: number }>
-  >({});
+  const [stats, setStats] = useState({ totalUsers: 0, totalDeposited: 0, totalInvested: 0, totalWithdrawn: 0 });
 
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [editPrice, setEditPrice] = useState("");
   const [editDaily, setEditDaily] = useState("");
 
-  const [viewingReferralsFor, setViewingReferralsFor] =
-    useState<string | null>(null);
-
+  const [viewingReferralsFor, setViewingReferralsFor] = useState<string | null>(null);
   const [userReferrals, setUserReferrals] = useState<any[]>([]);
   const [isFetchingRefs, setIsFetchingRefs] = useState(false);
 
@@ -157,429 +35,161 @@ export default function AdminPanel() {
   const [grantedIds, setGrantedIds] = useState<string[]>([]);
   const [isGranting, setIsGranting] = useState(false);
 
-  // VERIFY ADMIN
   useEffect(() => {
     const checkAdminAndFetch = async () => {
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-
-        if (!user) {
-          setIsLoading(false);
-          return;
-        }
-
-        const { data: profile, error } = await supabase
-          .from("profiles")
-          .select("is_admin")
-          .eq("id", user.id)
-          .single();
-
-        if (error) {
-          console.error("Admin verification error:", error);
-        }
-
-        if (profile?.is_admin) {
-          setIsAdmin(true);
-          await fetchAllData();
-        }
-
-        setIsLoading(false);
-      } catch (error) {
-        console.error("Admin verification error:", error);
-        setIsLoading(false);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setIsLoading(false); return; }
+      const { data: profile } = await supabase.from("profiles").select("is_admin").eq("id", user.id).single();
+      if (profile?.is_admin) {
+        setIsAdmin(true);
+        await fetchAllData();
       }
+      setIsLoading(false);
     };
-
     checkAdminAndFetch();
   }, []);
 
-  // FETCH ALL DATA
   const fetchAllData = async () => {
-    try {
-      // FETCH USERS
-      const profiles = await fetchAllRows(() =>
-        supabase
-          .from("profiles")
-          .select("*, balances(available), investments(status)")
-          .order("created_at", { ascending: false })
-      );
+    // 1. Fetch raw data for aggregations
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("*, balances(available)")
+      .order("created_at", { ascending: false });
+      
+    const { data: allTx } = await supabase.from("transactions").select("user_id, type, amount, status");
+    const { data: allInvs } = await supabase.from("investments").select("user_id, amount, status");
 
-      setUsers(profiles || []);
-
-      // FETCH ALL REFERRAL RELATIONSHIPS
-      const allProfiles = await fetchAllRows(() =>
-        supabase
-          .from("profiles")
-          .select("id, referred_by, phone, display_name, full_name")
-      );
-
-      // FETCH COMPLETED DEPOSITS
-      const allCompletedDeposits = await fetchAllRows(() =>
-        supabase
-          .from("transactions")
-          .select("user_id, amount")
-          .eq("type", "DEPOSIT")
-          .eq("status", "COMPLETED")
-      );
-
-      const depositedUserIds = new Set<string>(
-        allCompletedDeposits.map((d: any) => String(d.user_id))
-      );
-
-      // FETCH COMPLETED WITHDRAWALS
-      const allCompletedWithdrawals = await fetchAllRows(() =>
-        supabase
-          .from("transactions")
-          .select("user_id, amount")
-          .eq("type", "WITHDRAWAL")
-          .eq("status", "COMPLETED")
-      );
-
-      // FETCH COMPLETED COMMISSIONS
-      const allCompletedCommissions = await fetchAllRows(() =>
-        supabase
-          .from("transactions")
-          .select("user_id, amount")
-          .eq("type", "COMMISSION")
-          .eq("status", "COMPLETED")
-      );
-
-      // FETCH ACTIVE INVESTMENTS
-      const allActiveInvestments = await fetchAllRows(() =>
-        supabase
-          .from("investments")
-          .select("user_id, amount")
-          .eq("status", "ACTIVE")
-      );
-
-      // USER FINANCIAL STATISTICS
-      const financialStats: Record<
-        string,
-        {
-          deposited: number;
-          invested: number;
-          commission: number;
-        }
-      > = {};
-
-      // INITIALIZE USERS
-      allProfiles.forEach((profile: any) => {
-        financialStats[String(profile.id)] = {
-          deposited: 0,
-          invested: 0,
-          commission: 0,
-        };
-      });
-
-      // CALCULATE EACH USER'S DEPOSITS
-      allCompletedDeposits.forEach((deposit: any) => {
-        const userId = String(deposit.user_id);
-
-        if (!financialStats[userId]) {
-          financialStats[userId] = {
-            deposited: 0,
-            invested: 0,
-            commission: 0,
-          };
-        }
-
-        financialStats[userId].deposited += Number(
-          deposit.amount || 0
-        );
-      });
-
-      // CALCULATE EACH USER'S ACTIVE INVESTMENTS
-      allActiveInvestments.forEach((investment: any) => {
-        const userId = String(investment.user_id);
-
-        if (!financialStats[userId]) {
-          financialStats[userId] = {
-            deposited: 0,
-            invested: 0,
-            commission: 0,
-          };
-        }
-
-        financialStats[userId].invested += Number(
-          investment.amount || 0
-        );
-      });
-
-      // CALCULATE EACH USER'S REFERRAL COMMISSION
-      allCompletedCommissions.forEach((commission: any) => {
-        const userId = String(commission.user_id);
-
-        if (!financialStats[userId]) {
-          financialStats[userId] = {
-            deposited: 0,
-            invested: 0,
-            commission: 0,
-          };
-        }
-
-        financialStats[userId].commission += Number(
-          commission.amount || 0
-        );
-      });
-
-      setUserFinancialStats(financialStats);
-
-      // CREATE REFERRAL MAP
-      const referralStats: Record<
-        string,
-        { total: number; active: number }
-      > = {};
-
-      // CALCULATE ALL LEVELS FOR EACH USER
-      allProfiles.forEach((profile: any) => {
-        const descendants = getAllDescendants(
-          profile.id,
-          allProfiles,
-          depositedUserIds
-        );
-
-        referralStats[String(profile.id)] = {
-          total: descendants.length,
-          active: descendants.filter((r) => r.isActive).length,
-        };
-      });
-
-      setUserReferralStats(referralStats);
-
-      // PENDING DEPOSITS
-      const { data: dep, error: depError } = await supabase
-        .from("transactions")
-        .select("*, profiles(phone)")
-        .eq("type", "DEPOSIT")
-        .eq("status", "PENDING")
-        .order("created_at", { ascending: false });
-
-      if (depError) {
-        console.error("Pending deposits error:", depError);
-      }
-
-      if (dep) setDeposits(dep);
-
-      // PENDING WITHDRAWALS
-      const { data: txs, error: withdrawalError } = await supabase
-        .from("transactions")
-        .select("*, profiles(phone, full_name, bound_number)")
-        .eq("type", "WITHDRAWAL")
-        .eq("status", "PENDING")
-        .order("created_at", { ascending: false });
-
-      if (withdrawalError) {
-        console.error("Pending withdrawals error:", withdrawalError);
-      }
-
-      if (txs) setWithdrawals(txs);
-
-      // PRODUCTS
-      const { data: prods, error: productError } = await supabase
-        .from("products")
-        .select("*")
-        .order("min_amount", { ascending: true });
-
-      if (productError) {
-        console.error("Products fetch error:", productError);
-      }
-
-      if (prods) setProducts(prods);
-
-      // TOTAL USERS
-      const { count: userCount, error: countError } = await supabase
-        .from("profiles")
-        .select("*", { count: "exact", head: true });
-
-      if (countError) {
-        console.error("User count error:", countError);
-      }
-
-      // TOTAL INVESTED
-      const totalInvested =
-        allActiveInvestments.reduce(
-          (acc: number, curr: any) =>
-            acc + Number(curr.amount || 0),
-          0
-        ) || 0;
-
-      // TOTAL DEPOSITED
-      const totalDeposited =
-        allCompletedDeposits.reduce(
-          (acc: number, curr: any) =>
-            acc + Number(curr.amount || 0),
-          0
-        ) || 0;
-
-      // TOTAL WITHDRAWN
-      const totalWithdrawn =
-        allCompletedWithdrawals.reduce(
-          (acc: number, curr: any) =>
-            acc + Number(curr.amount || 0),
-          0
-        ) || 0;
-
-      setStats({
-        totalUsers: userCount || 0,
-        totalDeposited,
-        totalInvested,
-        totalWithdrawn,
-      });
-    } catch (error) {
-      console.error("Fetch all data error:", error);
+    // 2. Calculate Global Stats
+    let totalDeposited = 0;
+    let totalWithdrawn = 0;
+    
+    if (allTx) {
+      totalDeposited = allTx.filter(t => t.type === 'DEPOSIT' && t.status === 'COMPLETED').reduce((sum, t) => sum + Number(t.amount), 0);
+      totalWithdrawn = allTx.filter(t => t.type === 'WITHDRAWAL' && t.status === 'COMPLETED').reduce((sum, t) => sum + Number(t.amount), 0);
     }
+    
+    const totalInvested = allInvs?.filter(i => i.status === 'ACTIVE').reduce((sum, i) => sum + Number(i.amount), 0) || 0;
+
+    setStats({
+      totalUsers: profiles?.length || 0,
+      totalDeposited,
+      totalInvested,
+      totalWithdrawn
+    });
+
+    // 3. Enrich Profiles with their specific stats
+    if (profiles && allTx && allInvs) {
+      const enrichedUsers = profiles.map(user => {
+        const userTx = allTx.filter(t => t.user_id === user.id && t.status === 'COMPLETED');
+        const userInvs = allInvs.filter(i => i.user_id === user.id);
+
+        const deposited = userTx.filter(t => t.type === 'DEPOSIT').reduce((sum, t) => sum + Number(t.amount), 0);
+        const commission = userTx.filter(t => t.type === 'COMMISSION').reduce((sum, t) => sum + Number(t.amount), 0);
+        const invested = userInvs.reduce((sum, i) => sum + Number(i.amount), 0);
+
+        // Check if user has active investment for the badge
+        const hasActive = userInvs.some(i => i.status === 'ACTIVE');
+
+        return { 
+          ...user, 
+          stats: { deposited, commission, invested },
+          hasActiveProduct: hasActive
+        };
+      });
+      setUsers(enrichedUsers);
+    }
+
+    // 4. Fetch Pending Deposits & Withdrawals
+    const { data: dep } = await supabase.from("transactions").select("*, profiles(phone)").eq("type", "DEPOSIT").eq("status", "PENDING").order("created_at", { ascending: false });
+    if (dep) setDeposits(dep);
+
+    const { data: txs } = await supabase.from("transactions").select("*, profiles(phone, full_name, bound_number)").eq("type", "WITHDRAWAL").eq("status", "PENDING").order("created_at", { ascending: false });
+    if (txs) setWithdrawals(txs);
+
+    // 5. Fetch Products
+    const { data: prods } = await supabase.from("products").select("*").order("min_amount", { ascending: true });
+    if (prods) setProducts(prods);
   };
 
-  // VIEW REFERRALS - ALL LEVELS
   const handleViewReferrals = async (userId: string) => {
     setViewingReferralsFor(userId);
     setIsFetchingRefs(true);
     setUserReferrals([]);
 
-    try {
-      const allProfiles = await fetchAllRows(() =>
-        supabase
-          .from("profiles")
-          .select("id, referred_by, phone, display_name, full_name")
-      );
+    const { data: refs } = await supabase.from("referrals").select("referee_id, level").eq("referrer_id", userId);
 
-      const completedDeposits = await fetchAllRows(() =>
-        supabase
-          .from("transactions")
-          .select("user_id")
-          .eq("type", "DEPOSIT")
-          .eq("status", "COMPLETED")
-      );
+    if (refs && refs.length > 0) {
+      const ids = refs.map(r => r.referee_id);
+      const { data: profiles } = await supabase.from("profiles").select("id, phone, display_name").in("id", ids);
+      
+      // Active means they have a COMPLETED deposit
+      const { data: userDeposits } = await supabase
+        .from("transactions")
+        .select("user_id")
+        .in("user_id", ids)
+        .eq("type", "DEPOSIT")
+        .eq("status", "COMPLETED");
 
-      const depositedUserIds = new Set<string>(
-        completedDeposits.map((d: any) => String(d.user_id))
-      );
+      const activeUserIds = userDeposits?.map(d => d.user_id) || [];
 
-      const descendants = getAllDescendants(
-        userId,
-        allProfiles,
-        depositedUserIds
-      );
+      const merged = refs.map(r => {
+        const p = profiles?.find(prof => prof.id === r.referee_id);
+        return {
+          id: r.referee_id,
+          name: p?.display_name || p?.phone || "Unknown",
+          phone: p?.phone || "N/A",
+          level: r.level,
+          isActive: activeUserIds.includes(r.referee_id)
+        };
+      }).sort((a, b) => a.level - b.level);
 
-      descendants.sort((a, b) => {
-        if (a.level !== b.level) {
-          return a.level - b.level;
-        }
-
-        return a.name.localeCompare(b.name);
-      });
-
-      setUserReferrals(descendants);
-    } catch (error: any) {
-      console.error("View referrals error:", error);
-      alert("Failed to load referrals: " + error.message);
-    } finally {
-      setIsFetchingRefs(false);
+      setUserReferrals(merged);
     }
+    setIsFetchingRefs(false);
   };
 
-  // ADJUST BALANCE
-  const handleAdjustBalance = async (
-    userId: string,
-    currentBalance: number
-  ) => {
-    const newBalanceStr = prompt(
-      "Enter new balance (UGX):",
-      currentBalance.toString()
-    );
-
+  const handleAdjustBalance = async (userId: string, currentBalance: number) => {
+    const newBalanceStr = prompt("Enter new balance (UGX):", currentBalance.toString());
     if (newBalanceStr === null) return;
 
     const newBalance = Number(newBalanceStr);
-
-    if (!Number.isFinite(newBalance) || newBalance < 0) {
-      alert("Please enter a valid balance.");
-      return;
-    }
-
     const difference = newBalance - currentBalance;
 
-    const { error } = await supabase
-      .from("balances")
-      .update({ available: newBalance })
-      .eq("user_id", userId);
-
-    if (error) {
-      alert("Failed to update balance: " + error.message);
-      return;
-    }
+    await supabase.from("balances").update({ available: newBalance }).eq("user_id", userId);
 
     if (difference !== 0) {
       await supabase.from("transactions").insert({
-        user_id: userId,
-        type: "ADMIN_ADJUSTMENT",
-        amount: Math.abs(difference),
-        status: "COMPLETED",
+        user_id: userId, type: "ADMIN_ADJUSTMENT", amount: Math.abs(difference), status: "COMPLETED"
       });
     }
-
-    await fetchAllData();
-    alert("Balance updated successfully!");
+    fetchAllData();
   };
 
-  // BAN OR UNBAN USER
-  const handleBanUser = async (
-    userId: string,
-    currentStatus: string
-  ) => {
-    const newStatus =
-      currentStatus === "BANNED" ? "ACTIVE" : "BANNED";
-
-    const action = newStatus === "BANNED" ? "ban" : "unban";
-
-    if (!confirm(`Are you sure you want to ${action} this user?`))
-      return;
-
-    const { error } = await supabase
-      .from("profiles")
-      .update({ status: newStatus })
-      .eq("id", userId);
-
-    if (error) {
-      alert("Failed: " + error.message);
-      return;
-    }
-
-    await fetchAllData();
+  const handleBanUser = async (userId: string, currentStatus: string) => {
+    const newStatus = currentStatus === "BANNED" ? "ACTIVE" : "BANNED";
+    await supabase.from("profiles").update({ status: newStatus }).eq("id", userId);
+    fetchAllData();
   };
 
-  // OPEN GRANT PRODUCT
   const openGrantProduct = async (user: any) => {
     setGrantingUser(user);
     setGrantProductId("");
     setGrantedIds([]);
 
-    const { data: invs, error } = await supabase
+    const { data: invs } = await supabase
       .from("investments")
       .select("product_id")
       .eq("user_id", user.id)
       .eq("status", "ACTIVE");
-
-    if (error) {
-      console.error("Grant product fetch error:", error);
-    }
-
-    setGrantedIds(invs?.map((i: any) => i.product_id) || []);
+    setGrantedIds(invs?.map(i => i.product_id) || []);
   };
 
-  // GRANT PRODUCT
   const handleGrantProduct = async () => {
     if (!grantingUser || !grantProductId) {
       alert("Please select a product first.");
       return;
     }
-
-    const product = products.find(
-      (p) => p.id === grantProductId
-    );
-
+    const product = products.find(p => p.id === grantProductId);
     if (!product) return;
 
     if (grantedIds.includes(product.id)) {
@@ -587,36 +197,24 @@ export default function AdminPanel() {
       return;
     }
 
-    if (
-      !confirm(
-        `Grant ${product.name} to ${grantingUser.phone}? No money will be deducted from the user.`
-      )
-    )
-      return;
+    if (!confirm(`Grant ${product.name} to ${grantingUser.phone}? No money will be deducted from the user.`)) return;
 
     setIsGranting(true);
-
     try {
-      const { error } = await supabase
-        .from("investments")
-        .insert({
-          user_id: grantingUser.id,
-          product_id: product.id,
-          amount: product.min_amount,
-          expected_return:
-            Number(product.daily_payout) *
-            Number(product.duration_days),
-          status: "ACTIVE",
-          payouts_made: 0,
-        });
+      const { error } = await supabase.from("investments").insert({
+        user_id: grantingUser.id,
+        product_id: product.id,
+        amount: product.min_amount,
+        expected_return: Number(product.daily_payout) * Number(product.duration_days),
+        status: "ACTIVE",
+        payouts_made: 0
+      });
 
       if (error) throw error;
 
       alert(`${product.name} granted to ${grantingUser.phone}!`);
-
       setGrantingUser(null);
       setGrantProductId("");
-
       await fetchAllData();
     } catch (err: any) {
       console.error("Grant product error:", err);
@@ -626,238 +224,68 @@ export default function AdminPanel() {
     }
   };
 
-  // APPROVE DEPOSIT
-  const handleApproveDeposit = async (
-    txId: string,
-    userId: string,
-    amount: number
-  ) => {
+  const handleApproveDeposit = async (txId: string, userId: string, amount: number) => {
     if (!confirm("Approve this deposit?")) return;
-
     try {
-      const { error: transactionError } = await supabase
-        .from("transactions")
-        .update({ status: "COMPLETED" })
-        .eq("id", txId);
+      await supabase.from("transactions").update({ status: "COMPLETED" }).eq("id", txId);
+      const { data: bal } = await supabase.from("balances").select("available").eq("user_id", userId).single();
+      if (bal) await supabase.from("balances").update({ available: Number(bal.available) + amount }).eq("user_id", userId);
 
-      if (transactionError) throw transactionError;
-
-      const { data: bal, error: balanceError } = await supabase
-        .from("balances")
-        .select("available")
-        .eq("user_id", userId)
-        .single();
-
-      if (balanceError) throw balanceError;
-
-      if (bal) {
-        const { error: updateBalanceError } = await supabase
-          .from("balances")
-          .update({
-            available: Number(bal.available) + amount,
-          })
-          .eq("user_id", userId);
-
-        if (updateBalanceError) throw updateBalanceError;
-      }
-
-      // CHECK COMPLETED DEPOSIT COUNT
-      const { count: depositCount, error: countError } =
-        await supabase
-          .from("transactions")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", userId)
-          .eq("type", "DEPOSIT")
-          .eq("status", "COMPLETED");
-
-      if (countError) throw countError;
-
-      // FIRST COMPLETED DEPOSIT COMMISSION
+      const { count: depositCount } = await supabase.from("transactions").select("*", { count: 'exact', head: true }).eq("user_id", userId).eq("type", "DEPOSIT").eq("status", "COMPLETED");
       if (depositCount === 1) {
-        const { data: buyerProfile, error: buyerError } =
-          await supabase
-            .from("profiles")
-            .select("referred_by")
-            .eq("id", userId)
-            .single();
-
-        if (buyerError) throw buyerError;
-
+        const { data: buyerProfile } = await supabase.from("profiles").select("referred_by").eq("id", userId).single();
         let currentReferrerId = buyerProfile?.referred_by;
-
-        const commissionRates = [0.2, 0.02, 0.01];
-
+        const commissionRates = [0.20, 0.02, 0.01];
         for (let level = 1; level <= 3; level++) {
           if (!currentReferrerId) break;
-
-          const commissionAmount =
-            amount * commissionRates[level - 1];
-
-          const { data: refBal, error: refBalanceError } =
-            await supabase
-              .from("balances")
-              .select("available, total_commission")
-              .eq("user_id", currentReferrerId)
-              .single();
-
-          if (refBalanceError) {
-            console.error("Referrer balance error:", refBalanceError);
-            break;
-          }
-
+          const commissionAmount = amount * commissionRates[level - 1];
+          const { data: refBal } = await supabase.from("balances").select("available, total_commission").eq("user_id", currentReferrerId).single();
           if (refBal) {
-            const { error: commissionUpdateError } =
-              await supabase
-                .from("balances")
-                .update({
-                  available:
-                    Number(refBal.available) + commissionAmount,
-                  total_commission:
-                    Number(refBal.total_commission || 0) +
-                    commissionAmount,
-                })
-                .eq("user_id", currentReferrerId);
-
-            if (commissionUpdateError) {
-              throw commissionUpdateError;
-            }
-
-            const { error: transactionInsertError } =
-              await supabase.from("transactions").insert({
-                user_id: currentReferrerId,
-                type: "COMMISSION",
-                amount: commissionAmount,
-                status: "COMPLETED",
-              });
-
-            if (transactionInsertError) {
-              throw transactionInsertError;
-            }
+            await supabase.from("balances").update({ available: Number(refBal.available) + commissionAmount, total_commission: Number(refBal.total_commission) + commissionAmount }).eq("user_id", currentReferrerId);
+            await supabase.from("transactions").insert({ user_id: currentReferrerId, type: "COMMISSION", amount: commissionAmount, status: "COMPLETED" });
           }
-
-          const { data: nextProfile, error: nextProfileError } =
-            await supabase
-              .from("profiles")
-              .select("referred_by")
-              .eq("id", currentReferrerId)
-              .single();
-
-          if (nextProfileError) {
-            console.error("Next referrer fetch error:", nextProfileError);
-            break;
-          }
-
+          const { data: nextProfile } = await supabase.from("profiles").select("referred_by").eq("id", currentReferrerId).single();
           currentReferrerId = nextProfile?.referred_by;
         }
       }
-
-      alert("Approved!");
-      await fetchAllData();
-    } catch (err: any) {
-      alert("Error: " + err.message);
-    }
+      alert("Approved!"); fetchAllData();
+    } catch (err: any) { alert("Error: " + err.message); }
   };
 
-  // REJECT DEPOSIT
   const handleRejectDeposit = async (txId: string) => {
     if (!confirm("Reject this deposit?")) return;
-
-    const { error } = await supabase
-      .from("transactions")
-      .update({ status: "FAILED" })
-      .eq("id", txId);
-
-    if (error) {
-      alert("Failed to reject: " + error.message);
-      return;
-    }
-
-    await fetchAllData();
+    await supabase.from("transactions").update({ status: "FAILED" }).eq("id", txId);
+    fetchAllData();
   };
 
-  // APPROVE WITHDRAWAL
   const handleApproveWithdrawal = async (txId: string) => {
     if (!confirm("Approve this withdrawal?")) return;
-
-    const { error } = await supabase
-      .from("transactions")
-      .update({ status: "COMPLETED" })
-      .eq("id", txId);
-
-    if (error) {
-      alert("Failed: " + error.message);
-      return;
-    }
-
-    await fetchAllData();
+    await supabase.from("transactions").update({ status: "COMPLETED" }).eq("id", txId);
+    fetchAllData();
   };
 
-  // REJECT WITHDRAWAL AND REFUND
-  const handleRejectWithdrawal = async (
-    txId: string,
-    userId: string,
-    amount: number
-  ) => {
+  const handleRejectWithdrawal = async (txId: string, userId: string, amount: number) => {
     if (!confirm("Reject and refund?")) return;
-
-    const { error } = await supabase
-      .from("transactions")
-      .update({ status: "REJECTED" })
-      .eq("id", txId);
-
-    if (error) {
-      alert("Failed to reject withdrawal: " + error.message);
-      return;
-    }
-
-    const { data: bal, error: balanceError } = await supabase
-      .from("balances")
-      .select("available")
-      .eq("user_id", userId)
-      .single();
-
-    if (balanceError) {
-      alert("Failed to fetch balance: " + balanceError.message);
-      return;
-    }
-
-    if (bal) {
-      const { error: updateError } = await supabase
-        .from("balances")
-        .update({
-          available: Number(bal.available) + Number(amount),
-        })
-        .eq("user_id", userId);
-
-      if (updateError) {
-        alert("Refund error: " + updateError.message);
-        return;
-      }
-    }
-
-    await fetchAllData();
+    await supabase.from("transactions").update({ status: "REJECTED" }).eq("id", txId);
+    const { data: bal } = await supabase.from("balances").select("available").eq("user_id", userId).single();
+    if (bal) await supabase.from("balances").update({ available: Number(bal.available) + Number(amount) }).eq("user_id", userId);
+    fetchAllData();
   };
 
-  // OPEN PRODUCT EDIT
   const openEditProduct = (prod: any) => {
     setEditingProduct(prod);
     setEditPrice(prod.min_amount.toString());
     setEditDaily(prod.daily_payout.toString());
   };
 
-  // SAVE PRODUCT EDIT
   const saveProductEdit = async () => {
     if (!editingProduct) return;
 
     const price = Number(editPrice);
     const daily = Number(editDaily);
 
-    if (
-      !Number.isFinite(price) ||
-      price <= 0 ||
-      !Number.isFinite(daily) ||
-      daily <= 0
-    ) {
+    if (!Number.isFinite(price) || price <= 0 ||
+        !Number.isFinite(daily) || daily <= 0) {
       alert("Please enter valid product values.");
       return;
     }
@@ -865,818 +293,258 @@ export default function AdminPanel() {
     try {
       const { data, error } = await supabase
         .from("products")
-        .update({
-          min_amount: price,
-          max_amount: price,
-          daily_payout: daily,
-        })
+        .update({ min_amount: price, max_amount: price, daily_payout: daily })
         .eq("id", editingProduct.id)
         .select()
         .single();
 
       if (error) throw error;
+      if (!data) throw new Error("Product was not found or was not updated.");
 
-      if (!data) {
-        throw new Error("Product was not found or was not updated.");
-      }
-
-      setProducts((prev) =>
-        prev.map((p) => (p.id === data.id ? data : p))
-      );
-
+      setProducts(prev => prev.map(p => p.id === data.id ? data : p));
       setEditingProduct(null);
-
       await fetchAllData();
-
       alert("Product successfully updated!");
+
     } catch (err: any) {
       alert("Failed to update product: " + err.message);
     }
   };
 
-  // SEARCH USERS
-  const filteredUsers = users.filter((u) => {
-    const query = searchQuery.toLowerCase();
+  const filteredUsers = users.filter(u => 
+    u.phone.includes(searchQuery) || 
+    (u.full_name && u.full_name.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
 
-    return (
-      (u.phone || "").toLowerCase().includes(query) ||
-      (u.full_name || "").toLowerCase().includes(query) ||
-      (u.display_name || "").toLowerCase().includes(query)
-    );
-  });
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center">
-        Verifying Admin...
-      </div>
-    );
-  }
-
-  if (!isAdmin) {
-    return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center">
-        Access Denied
-      </div>
-    );
-  }
+  if (isLoading) return <div className="min-h-screen bg-black text-white flex items-center justify-center">Verifying Admin...</div>;
+  if (!isAdmin) return <div className="min-h-screen bg-black text-white flex items-center justify-center">Access Denied</div>;
 
   return (
     <div className="min-h-screen bg-[#f0f9ff] text-gray-900 pb-10">
-
-      {/* HEADER */}
       <div className="bg-white p-5 border-b border-gray-100 flex justify-between items-center sticky top-0 z-20 shadow-sm">
-        <h1 className="text-xl font-extrabold text-red-600 tracking-tight">
-          ADMIN PANEL
-        </h1>
-
-        <button
-          onClick={() => router.push("/dashboard/home")}
-          className="text-xs bg-gray-100 px-3 py-1.5 rounded-lg border border-gray-200 font-bold"
-        >
-          Exit
-        </button>
+        <h1 className="text-xl font-extrabold text-red-600 tracking-tight">ADMIN PANEL</h1>
+        <button onClick={() => router.push("/dashboard/home")} className="text-xs bg-gray-100 px-3 py-1.5 rounded-lg border border-gray-200 font-bold">Exit</button>
       </div>
 
-      {/* TABS */}
       <div className="flex space-x-2 p-4 overflow-x-auto">
-        {[
-          "OVERVIEW",
-          "USERS",
-          "DEPOSITS",
-          "WITHDRAWALS",
-          "PRODUCTS",
-        ].map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeTab === tab
-                ? "bg-blue-600 text-white"
-                : "bg-white text-gray-500 border border-gray-200"
-            }`}
-          >
-            {tab}
-          </button>
+        {["OVERVIEW", "USERS", "DEPOSITS", "WITHDRAWALS", "PRODUCTS"].map((tab) => (
+          <button key={tab} onClick={() => setActiveTab(tab)} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === tab ? "bg-blue-600 text-white" : "bg-white text-gray-500 border border-gray-200"}`}>{tab}</button>
         ))}
       </div>
 
       <div className="p-4 space-y-4">
-
-        {/* OVERVIEW */}
         {activeTab === "OVERVIEW" && (
-          <div className="space-y-4">
-
-            {/* TOTAL USERS */}
+          <div className="grid grid-cols-2 gap-4">
             <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-              <p className="text-gray-400 text-xs font-bold uppercase">
-                Total Users
-              </p>
-
-              <h2 className="text-3xl font-black">
-                {stats.totalUsers.toLocaleString()}
-              </h2>
+              <p className="text-gray-400 text-[10px] font-bold uppercase">Total Users</p>
+              <h2 className="text-2xl font-black">{stats.totalUsers}</h2>
             </div>
-
-            {/* TOTAL DEPOSITED */}
             <div className="bg-white p-5 rounded-2xl border border-green-100 shadow-sm">
-              <p className="text-green-500 text-xs font-bold uppercase">
-                Total Deposited
-              </p>
-
-              <h2 className="text-3xl font-black text-green-600">
-                UGX {stats.totalDeposited.toLocaleString()}
-              </h2>
+              <p className="text-green-500 text-[10px] font-bold uppercase">Total Deposited</p>
+              <h2 className="text-2xl font-black">UGX {stats.totalDeposited.toLocaleString()}</h2>
             </div>
-
-            {/* TOTAL INVESTED */}
             <div className="bg-white p-5 rounded-2xl border border-blue-100 shadow-sm">
-              <p className="text-blue-500 text-xs font-bold uppercase">
-                Total Invested
-              </p>
-
-              <h2 className="text-3xl font-black text-blue-600">
-                UGX {stats.totalInvested.toLocaleString()}
-              </h2>
+              <p className="text-blue-500 text-[10px] font-bold uppercase">Total Invested</p>
+              <h2 className="text-2xl font-black">UGX {stats.totalInvested.toLocaleString()}</h2>
             </div>
-
-            {/* TOTAL WITHDRAWN */}
             <div className="bg-white p-5 rounded-2xl border border-red-100 shadow-sm">
-              <p className="text-red-500 text-xs font-bold uppercase">
-                Total Withdrawn
-              </p>
-
-              <h2 className="text-3xl font-black text-red-600">
-                UGX {stats.totalWithdrawn.toLocaleString()}
-              </h2>
+              <p className="text-red-500 text-[10px] font-bold uppercase">Total Withdrawn</p>
+              <h2 className="text-2xl font-black">UGX {stats.totalWithdrawn.toLocaleString()}</h2>
             </div>
-
           </div>
         )}
 
-        {/* USERS */}
         {activeTab === "USERS" && (
           <div className="space-y-3">
-
-            {/* SEARCH */}
             <div className="relative mb-2">
-              <input
-                type="text"
-                placeholder="Search by phone or name..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full px-4 py-3 pl-10 bg-white border border-gray-200 rounded-xl text-gray-900 text-sm focus:outline-none focus:border-blue-500 shadow-sm"
-              />
-
-              <svg
-                className="absolute left-3 top-3.5 text-gray-400"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="11" cy="11" r="8"></circle>
-                <line
-                  x1="21"
-                  y1="21"
-                  x2="16.65"
-                  y2="16.65"
-                ></line>
-              </svg>
+              <input type="text" placeholder="Search by phone or name..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full px-4 py-3 pl-10 bg-white border border-gray-200 rounded-xl text-gray-900 text-sm focus:outline-none focus:border-blue-500 shadow-sm" />
+              <svg className="absolute left-3 top-3.5 text-gray-400" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
             </div>
 
             {filteredUsers.map((user) => {
-              // BALANCE
+              // Bulletproof Balance Parser
               let userBalance = 0;
-
               if (user.balances) {
                 if (Array.isArray(user.balances)) {
-                  userBalance = Number(
-                    user.balances[0]?.available || 0
-                  );
+                  userBalance = Number(user.balances[0]?.available || 0);
                 } else {
-                  userBalance = Number(
-                    user.balances.available || 0
-                  );
+                  userBalance = Number(user.balances.available || 0);
                 }
               }
-
-              // ACTIVE PRODUCT
-              const hasActiveProduct = user.investments?.some(
-                (inv: any) => inv.status === "ACTIVE"
-              );
-
-              // USER FINANCIAL STATS
-              const financialStats =
-                userFinancialStats[String(user.id)] || {
-                  deposited: 0,
-                  invested: 0,
-                  commission: 0,
-                };
-
-              // REFERRALS
-              const referralStats =
-                userReferralStats[String(user.id)] || {
-                  total: 0,
-                  active: 0,
-                };
-
+              
               return (
-                <div
-                  key={user.id}
-                  className="bg-white border border-gray-100 p-4 rounded-2xl shadow-sm"
-                >
-
-                  {/* USER DETAILS */}
+                <div key={user.id} className="bg-white border border-gray-100 p-4 rounded-2xl shadow-sm">
                   <div className="flex justify-between items-start mb-3">
                     <div>
-                      <p className="font-bold text-gray-900">
-                        {user.phone || "No phone"}
-                      </p>
-
-                      <p className="text-[10px] text-gray-500">
-                        Name:{" "}
-                        {user.full_name ||
-                          user.display_name ||
-                          "Not bound"}
-                      </p>
+                      <p className="font-bold text-gray-900">{user.phone}</p>
+                      <p className="text-[10px] text-gray-500">Name: {user.full_name || "Not bound"}</p>
                     </div>
-
-                    {/* BADGES */}
-                    <div className="flex flex-wrap justify-end gap-1">
-                      {user.status === "BANNED" ? (
-                        <span className="text-[10px] px-2 py-1 rounded-md font-bold bg-red-50 text-red-600">
-                          BANNED
-                        </span>
-                      ) : hasActiveProduct ? (
-                        <span className="text-[10px] px-2 py-1 rounded-md font-bold bg-green-50 text-green-600">
-                          ACTIVE
-                        </span>
-                      ) : null}
+                    {user.status === 'BANNED' ? (
+                       <span className="text-[10px] px-2 py-1 rounded-md font-bold bg-red-50 text-red-600">BANNED</span>
+                    ) : user.hasActiveProduct ? (
+                       <span className="text-[10px] px-2 py-1 rounded-md font-bold bg-green-50 text-green-600">ACTIVE</span>
+                    ) : null}
+                  </div>
+                  
+                  {/* UPDATED STATS GRID */}
+                  <div className="bg-gray-50 p-3 rounded-xl mb-4 grid grid-cols-2 gap-y-3 gap-x-2">
+                    <div>
+                      <p className="text-[9px] text-gray-500 font-bold uppercase">Balance</p>
+                      <p className="text-xs font-black text-gray-900">UGX {userBalance.toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-[9px] text-gray-500 font-bold uppercase">Deposited</p>
+                      <p className="text-xs font-black text-green-600">UGX {user.stats.deposited.toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-[9px] text-gray-500 font-bold uppercase">Invested</p>
+                      <p className="text-xs font-black text-blue-600">UGX {user.stats.invested.toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-[9px] text-gray-500 font-bold uppercase">Commission</p>
+                      <p className="text-xs font-black text-purple-600">UGX {user.stats.commission.toLocaleString()}</p>
                     </div>
                   </div>
 
-                  {/* BALANCE */}
-                  <div className="bg-gray-50 p-3 rounded-xl mb-3 flex justify-between items-center">
-                    <p className="text-[10px] text-gray-500 font-bold uppercase">
-                      Balance
-                    </p>
-
-                    <p className="text-sm font-black text-gray-900">
-                      UGX {userBalance.toLocaleString()}
-                    </p>
-                  </div>
-
-                  {/* INDIVIDUAL USER FINANCIAL STATS */}
-                  <div className="grid grid-cols-2 gap-2 mb-3">
-
-                    {/* DEPOSITED */}
-                    <div className="bg-green-50 border border-green-100 p-3 rounded-xl">
-                      <p className="text-[9px] text-green-600 font-bold uppercase">
-                        Total Deposited
-                      </p>
-
-                      <p className="text-sm font-black text-green-700">
-                        UGX {financialStats.deposited.toLocaleString()}
-                      </p>
-                    </div>
-
-                    {/* INVESTED */}
-                    <div className="bg-blue-50 border border-blue-100 p-3 rounded-xl">
-                      <p className="text-[9px] text-blue-600 font-bold uppercase">
-                        Total Invested
-                      </p>
-
-                      <p className="text-sm font-black text-blue-700">
-                        UGX {financialStats.invested.toLocaleString()}
-                      </p>
-                    </div>
-
-                    {/* REFERRAL COMMISSION */}
-                    <div className="bg-purple-50 border border-purple-100 p-3 rounded-xl">
-                      <p className="text-[9px] text-purple-600 font-bold uppercase">
-                        Referral Commission
-                      </p>
-
-                      <p className="text-sm font-black text-purple-700">
-                        UGX {financialStats.commission.toLocaleString()}
-                      </p>
-                    </div>
-
-                    {/* TOTAL REFERRALS */}
-                    <div className="bg-cyan-50 border border-cyan-100 p-3 rounded-xl">
-                      <p className="text-[9px] text-cyan-600 font-bold uppercase">
-                        Total Referrals
-                      </p>
-
-                      <p className="text-xl font-black text-cyan-700">
-                        {referralStats.total.toLocaleString()}
-                      </p>
-                    </div>
-
-                    {/* ACTIVE REFERRALS */}
-                    <div className="bg-emerald-50 border border-emerald-100 p-3 rounded-xl col-span-2">
-                      <p className="text-[9px] text-emerald-600 font-bold uppercase">
-                        Active Referrals
-                      </p>
-
-                      <p className="text-xl font-black text-emerald-700">
-                        {referralStats.active.toLocaleString()}
-                      </p>
-                    </div>
-
-                  </div>
-
-                  {/* BUTTONS */}
                   <div className="flex flex-wrap gap-2">
-
-                    <button
-                      onClick={() =>
-                        handleAdjustBalance(user.id, userBalance)
-                      }
-                      className="text-[10px] bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg border border-blue-100 font-bold"
-                    >
-                      Adjust Balance
-                    </button>
-
-                    <button
-                      onClick={() => openGrantProduct(user)}
-                      className="text-[10px] bg-green-50 text-green-600 px-3 py-1.5 rounded-lg border border-green-100 font-bold"
-                    >
-                      Grant Product
-                    </button>
-
-                    <button
-                      onClick={() => handleViewReferrals(user.id)}
-                      className="text-[10px] bg-cyan-50 text-cyan-600 px-3 py-1.5 rounded-lg border border-cyan-100 font-bold"
-                    >
-                      View Referrals
-                    </button>
-
-                    <button
-                      onClick={() =>
-                        handleBanUser(
-                          user.id,
-                          user.status || "ACTIVE"
-                        )
-                      }
-                      className="text-[10px] bg-red-50 text-red-600 px-3 py-1.5 rounded-lg border border-red-100 font-bold"
-                    >
-                      {user.status === "BANNED"
-                        ? "Unban User"
-                        : "Ban User"}
-                    </button>
-
+                    <button onClick={() => handleAdjustBalance(user.id, userBalance)} className="text-[10px] bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg border border-blue-100 font-bold">Adjust Balance</button>
+                    <button onClick={() => openGrantProduct(user)} className="text-[10px] bg-green-50 text-green-600 px-3 py-1.5 rounded-lg border border-green-100 font-bold">Grant Product</button>
+                    <button onClick={() => handleViewReferrals(user.id)} className="text-[10px] bg-cyan-50 text-cyan-600 px-3 py-1.5 rounded-lg border border-cyan-100 font-bold">View Referrals</button>
+                    <button onClick={() => handleBanUser(user.id, user.status || 'ACTIVE')} className="text-[10px] bg-red-50 text-red-600 px-3 py-1.5 rounded-lg border border-red-100 font-bold">{user.status === 'BANNED' ? 'Unban User' : 'Ban User'}</button>
                   </div>
                 </div>
               );
             })}
-
-            {filteredUsers.length === 0 && (
-              <div className="text-center py-10 text-gray-500">
-                No users found.
-              </div>
-            )}
           </div>
         )}
 
-        {/* DEPOSITS */}
+        {/* OTHER TABS REMAIN THE SAME */}
         {activeTab === "DEPOSITS" && (
           <div className="space-y-3">
-
             {deposits.map((d) => (
-              <div
-                key={d.id}
-                className="bg-white border border-gray-100 p-4 rounded-2xl shadow-sm"
-              >
+              <div key={d.id} className="bg-white border border-gray-100 p-4 rounded-2xl shadow-sm">
                 <div className="flex justify-between items-center mb-2">
-                  <p className="font-bold text-gray-900">
-                    {d.profiles?.phone}
-                  </p>
-
-                  <h3 className="text-lg font-black text-green-600">
-                    UGX {Number(d.amount).toLocaleString()}
-                  </h3>
+                  <p className="font-bold text-gray-900">{d.profiles?.phone}</p>
+                  <h3 className="text-lg font-black text-green-600">UGX {Number(d.amount).toLocaleString()}</h3>
                 </div>
-
                 <div className="bg-gray-50 p-3 rounded-xl mb-4">
-                  <p className="text-[10px] text-gray-500 font-bold uppercase mb-1">
-                    Paid from:{" "}
-                    <span className="text-gray-900 text-xs font-black">
-                      {d.payment_phone || "N/A"}
-                    </span>
-                  </p>
-
-                  <p className="text-[10px] text-gray-500 font-bold uppercase">
-                    TxID:{" "}
-                    <span className="text-blue-600 text-xs font-black">
-                      {d.tx_id || "PesaJet Auto"}
-                    </span>
-                  </p>
+                  <p className="text-[10px] text-gray-500 font-bold uppercase mb-1">Paid from: <span className="text-gray-900 text-xs font-black">{d.payment_phone || "N/A"}</span></p>
+                  <p className="text-[10px] text-gray-500 font-bold uppercase">TxID: <span className="text-blue-600 text-xs font-black">{d.tx_id || "PesaJet Auto"}</span></p>
                 </div>
-
                 <div className="flex gap-2">
-                  <button
-                    onClick={() =>
-                      handleApproveDeposit(
-                        d.id,
-                        d.user_id,
-                        Number(d.amount)
-                      )
-                    }
-                    className="flex-1 bg-green-600 text-white font-bold py-2 rounded-xl text-sm"
-                  >
-                    Approve
-                  </button>
-
-                  <button
-                    onClick={() => handleRejectDeposit(d.id)}
-                    className="flex-1 bg-red-50 text-red-600 font-bold py-2 rounded-xl text-sm border border-red-100"
-                  >
-                    Reject
-                  </button>
+                  <button onClick={() => handleApproveDeposit(d.id, d.user_id, d.amount)} className="flex-1 bg-green-600 text-white font-bold py-2 rounded-xl text-sm">Approve</button>
+                  <button onClick={() => handleRejectDeposit(d.id)} className="flex-1 bg-red-50 text-red-600 font-bold py-2 rounded-xl text-sm border border-red-100">Reject</button>
                 </div>
               </div>
             ))}
-
-            {deposits.length === 0 && (
-              <div className="text-center py-10 text-gray-500">
-                No pending deposits.
-              </div>
-            )}
-
           </div>
         )}
 
-        {/* WITHDRAWALS */}
         {activeTab === "WITHDRAWALS" && (
           <div className="space-y-3">
-
             {withdrawals.map((w) => (
-              <div
-                key={w.id}
-                className="bg-white border border-gray-100 p-4 rounded-2xl shadow-sm"
-              >
-
-                {/* USER DETAILS AND AMOUNT */}
-                <div className="flex justify-between items-start mb-3">
-                  <div className="flex-1 min-w-0">
-
-                    {/* USER NAME */}
-                    <p className="font-bold text-gray-900 text-sm">
-                      {w.profiles?.full_name || "Name not provided"}
-                    </p>
-
-                    {/* REGISTERED PHONE */}
-                    <div className="mt-2 bg-blue-50 border border-blue-100 p-2 rounded-lg">
-                      <p className="text-[9px] font-bold text-blue-500 uppercase tracking-wider">
-                        Registered Number
-                      </p>
-
-                      <p className="text-sm font-bold text-blue-800">
-                        {w.profiles?.phone || "Not available"}
-                      </p>
-                    </div>
-
-                    {/* RECEIVING NUMBER */}
-                    <div className="mt-2 bg-cyan-50 border border-cyan-100 p-2 rounded-lg">
-                      <p className="text-[9px] font-bold text-cyan-600 uppercase tracking-wider">
-                        Receiving Number
-                      </p>
-
-                      <p className="text-sm font-bold text-cyan-800">
-                        {w.profiles?.bound_number || "Not provided"}
-                      </p>
-                    </div>
-
+              <div key={w.id} className="bg-white border border-gray-100 p-4 rounded-2xl shadow-sm">
+                <div className="flex justify-between items-center mb-2">
+                  <div>
+                    <p className="font-bold text-gray-900">{w.profiles?.full_name || w.profiles?.phone}</p>
+                    <p className="text-xs text-cyan-600">{w.profiles?.bound_number}</p>
                   </div>
-
-                  {/* AMOUNT */}
-                  <div className="text-right ml-3">
-                    <p className="text-[9px] text-gray-400 font-bold uppercase">
-                      Amount
-                    </p>
-
-                    <h3 className="text-lg font-black text-red-500">
-                      UGX {Number(w.amount).toLocaleString()}
-                    </h3>
+                  <div className="text-right">
+                    <h3 className="text-lg font-black text-red-500">UGX {Number(w.amount).toLocaleString()}</h3>
                   </div>
                 </div>
-
-                {/* ACTION BUTTONS */}
                 <div className="flex gap-2 mt-4">
-
-                  <button
-                    onClick={() =>
-                      handleApproveWithdrawal(w.id)
-                    }
-                    className="flex-1 bg-green-600 text-white font-bold py-2 rounded-xl text-sm"
-                  >
-                    Mark Paid
-                  </button>
-
-                  <button
-                    onClick={() =>
-                      handleRejectWithdrawal(
-                        w.id,
-                        w.user_id,
-                        Number(w.amount)
-                      )
-                    }
-                    className="flex-1 bg-red-50 text-red-600 font-bold py-2 rounded-xl text-sm border border-red-100"
-                  >
-                    Reject
-                  </button>
-
+                  <button onClick={() => handleApproveWithdrawal(w.id)} className="flex-1 bg-green-600 text-white font-bold py-2 rounded-xl text-sm">Mark Paid</button>
+                  <button onClick={() => handleRejectWithdrawal(w.id, w.user_id, w.amount)} className="flex-1 bg-red-50 text-red-600 font-bold py-2 rounded-xl text-sm border border-red-100">Reject</button>
                 </div>
               </div>
             ))}
-
-            {withdrawals.length === 0 && (
-              <div className="text-center py-10 text-gray-500">
-                No pending withdrawals.
-              </div>
-            )}
-
           </div>
         )}
 
-        {/* PRODUCTS */}
         {activeTab === "PRODUCTS" && (
           <div className="space-y-3">
-
             {products.map((p) => (
-              <div
-                key={p.id}
-                className="bg-white border border-gray-100 p-4 rounded-2xl flex justify-between items-center shadow-sm"
-              >
+              <div key={p.id} className="bg-white border border-gray-100 p-4 rounded-2xl flex justify-between items-center shadow-sm">
                 <div>
-                  <p className="font-bold text-gray-900">
-                    {p.name}
-                  </p>
-
-                  <p className="text-[10px] text-gray-500">
-                    Price: UGX{" "}
-                    {Number(p.min_amount).toLocaleString()} |
-                    Daily: UGX{" "}
-                    {Number(p.daily_payout).toLocaleString()}
-                  </p>
+                  <p className="font-bold text-gray-900">{p.name}</p>
+                  <p className="text-[10px] text-gray-500">Price: UGX {Number(p.min_amount).toLocaleString()} | Daily: UGX {Number(p.daily_payout).toLocaleString()}</p>
                 </div>
-
-                <button
-                  onClick={() => openEditProduct(p)}
-                  className="text-[10px] bg-blue-50 text-blue-600 px-3 py-2 rounded-lg border border-blue-100 font-bold"
-                >
-                  Edit
-                </button>
+                <button onClick={() => openEditProduct(p)} className="text-[10px] bg-blue-50 text-blue-600 px-3 py-2 rounded-lg border border-blue-100 font-bold">Edit</button>
               </div>
             ))}
-
-            {products.length === 0 && (
-              <div className="text-center py-10 text-gray-500">
-                No products found.
-              </div>
-            )}
-
           </div>
         )}
-
       </div>
 
-      {/* EDIT PRODUCT MODAL */}
+      {/* MODALS REMAIN THE SAME */}
       {editingProduct && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl">
-
-            <h3 className="text-xl font-bold text-gray-900 mb-4">
-              Edit {editingProduct.name}
-            </h3>
-
-            <label className="block text-[10px] font-bold tracking-widest text-gray-500 uppercase mb-1">
-              Product Price (UGX)
-            </label>
-
-            <input
-              type="number"
-              value={editPrice}
-              onChange={(e) => setEditPrice(e.target.value)}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-bold mb-4"
-            />
-
-            <label className="block text-[10px] font-bold tracking-widest text-gray-500 uppercase mb-1">
-              Daily Payout (UGX)
-            </label>
-
-            <input
-              type="number"
-              value={editDaily}
-              onChange={(e) => setEditDaily(e.target.value)}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-bold mb-6"
-            />
-
-            <button
-              onClick={saveProductEdit}
-              className="w-full font-bold py-4 rounded-xl text-white bg-blue-600"
-            >
-              Save Changes
-            </button>
-
-            <button
-              onClick={() => setEditingProduct(null)}
-              className="w-full mt-2 font-bold py-3 rounded-xl text-gray-600 bg-gray-100"
-            >
-              Cancel
-            </button>
-
+            <h3 className="text-xl font-bold text-gray-900 mb-4">Edit {editingProduct.name}</h3>
+            <label className="block text-[10px] font-bold tracking-widest text-gray-500 uppercase mb-1">Product Price (UGX)</label>
+            <input type="number" value={editPrice} onChange={(e) => setEditPrice(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-bold mb-4" />
+            <label className="block text-[10px] font-bold tracking-widest text-gray-500 uppercase mb-1">Daily Payout (UGX)</label>
+            <input type="number" value={editDaily} onChange={(e) => setEditDaily(e.target.value)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-bold mb-6" />
+            <button onClick={saveProductEdit} className="w-full font-bold py-4 rounded-xl text-white bg-blue-600">Save Changes</button>
           </div>
         </div>
       )}
 
-      {/* GRANT PRODUCT MODAL */}
       {grantingUser && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl max-h-[85vh] flex flex-col">
-
             <div className="flex justify-between items-center mb-1">
-              <h3 className="text-xl font-bold text-gray-900">
-                Grant Product
-              </h3>
-
-              <button
-                onClick={() => setGrantingUser(null)}
-                className="text-gray-400 hover:text-gray-900 text-xl"
-              >
-                ✕
-              </button>
+              <h3 className="text-xl font-bold text-gray-900">Grant Product</h3>
+              <button onClick={() => setGrantingUser(null)} className="text-gray-400 hover:text-gray-900 text-xl">✕</button>
             </div>
-
-            <p className="text-xs text-gray-500 mb-4">
-              To:{" "}
-              <span className="font-bold text-gray-900">
-                {grantingUser.phone}
-              </span>
-            </p>
-
+            <p className="text-xs text-gray-500 mb-4">To: <span className="font-bold text-gray-900">{grantingUser.phone}</span></p>
             <div className="flex-1 overflow-y-auto space-y-2 mb-4">
               {products.map((p) => {
                 const alreadyHas = grantedIds.includes(p.id);
                 const selected = grantProductId === p.id;
-
                 return (
-                  <button
-                    key={p.id}
-                    disabled={alreadyHas}
-                    onClick={() => setGrantProductId(p.id)}
-                    className={`w-full text-left p-3 rounded-xl border transition-all ${
-                      alreadyHas
-                        ? "bg-gray-100 border-gray-200 opacity-60 cursor-not-allowed"
-                        : selected
-                        ? "bg-blue-50 border-blue-500"
-                        : "bg-gray-50 border-gray-200"
-                    }`}
-                  >
+                  <button key={p.id} disabled={alreadyHas} onClick={() => setGrantProductId(p.id)} className={`w-full text-left p-3 rounded-xl border transition-all ${alreadyHas ? "bg-gray-100 border-gray-200 opacity-60 cursor-not-allowed" : selected ? "bg-blue-50 border-blue-500" : "bg-gray-50 border-gray-200"}`}>
                     <div className="flex justify-between items-center">
-                      <p className="font-bold text-sm text-gray-900">
-                        {p.name}
-                      </p>
-
-                      {alreadyHas && (
-                        <span className="text-[9px] font-bold text-green-600 uppercase">
-                          Already active
-                        </span>
-                      )}
+                      <p className="font-bold text-sm text-gray-900">{p.name}</p>
+                      {alreadyHas && <span className="text-[9px] font-bold text-green-600 uppercase">Active</span>}
                     </div>
-
-                    <p className="text-[10px] text-gray-500">
-                      Price: UGX{" "}
-                      {Number(p.min_amount).toLocaleString()} |
-                      Daily: UGX{" "}
-                      {Number(p.daily_payout).toLocaleString()}
-                    </p>
+                    <p className="text-[10px] text-gray-500">Price: UGX {Number(p.min_amount).toLocaleString()} | Daily: UGX {Number(p.daily_payout).toLocaleString()}</p>
                   </button>
                 );
               })}
             </div>
-
-            <button
-              onClick={handleGrantProduct}
-              disabled={isGranting || !grantProductId}
-              className="w-full font-bold py-4 rounded-xl text-white bg-green-600 disabled:opacity-50"
-            >
-              {isGranting ? "Granting..." : "Grant Product"}
-            </button>
-
+            <button onClick={handleGrantProduct} disabled={isGranting || !grantProductId} className="w-full font-bold py-4 rounded-xl text-white bg-green-600 disabled:opacity-50">{isGranting ? "Granting..." : "Grant Product"}</button>
           </div>
         </div>
       )}
 
-      {/* VIEW REFERRALS MODAL */}
       {viewingReferralsFor && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl h-[75vh] flex flex-col">
-
-            {/* HEADER */}
+          <div className="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl h-[70vh] flex flex-col">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold text-gray-900">
-                User's Referrals
-              </h3>
-
-              <button
-                onClick={() => {
-                  setViewingReferralsFor(null);
-                  setUserReferrals([]);
-                }}
-                className="text-gray-400 hover:text-gray-900 text-xl"
-              >
-                ✕
-              </button>
+              <h3 className="text-xl font-bold text-gray-900">User's Referrals</h3>
+              <button onClick={() => setViewingReferralsFor(null)} className="text-gray-400 hover:text-gray-900 text-xl">✕</button>
             </div>
-
-            {/* REFERRAL SUMMARY */}
-            {!isFetchingRefs && (
-              <div className="grid grid-cols-2 gap-2 mb-4">
-
-                <div className="bg-cyan-50 border border-cyan-100 rounded-xl p-3">
-                  <p className="text-[9px] font-bold text-cyan-600 uppercase">
-                    Total Referrals
-                  </p>
-
-                  <p className="text-xl font-black text-cyan-700">
-                    {userReferrals.length}
-                  </p>
-                </div>
-
-                <div className="bg-green-50 border border-green-100 rounded-xl p-3">
-                  <p className="text-[9px] font-bold text-green-600 uppercase">
-                    Active Referrals
-                  </p>
-
-                  <p className="text-xl font-black text-green-700">
-                    {userReferrals.filter((r) => r.isActive).length}
-                  </p>
-                </div>
-
-              </div>
-            )}
-
-            {/* REFERRAL LIST */}
             <div className="flex-1 overflow-y-auto space-y-2">
-
-              {isFetchingRefs ? (
-                <div className="text-center text-gray-500 mt-10">
-                  Loading referrals...
-                </div>
-              ) : userReferrals.length === 0 ? (
-                <div className="text-center text-gray-500 mt-10">
-                  This user has no referrals yet.
-                </div>
-              ) : (
-                userReferrals.map((ref) => (
-                  <div
-                    key={ref.id}
-                    className="bg-gray-50 border border-gray-100 p-3 rounded-xl flex justify-between items-center"
-                  >
+              {isFetchingRefs ? <div className="text-center text-gray-500 mt-10">Loading...</div> : userReferrals.length === 0 ? <div className="text-center text-gray-500 mt-10">No referrals.</div> : (
+                userReferrals.map((ref, idx) => (
+                  <div key={idx} className="bg-gray-50 border border-gray-100 p-3 rounded-xl flex justify-between items-center">
                     <div>
-                      <p className="font-bold text-gray-900 text-sm">
-                        {ref.name}
-                      </p>
-
-                      <p className="text-[10px] text-gray-500">
-                        {ref.phone}
-                      </p>
+                      <p className="font-bold text-gray-900 text-sm">{ref.name}</p>
+                      <p className="text-[10px] text-gray-500">{ref.phone}</p>
                     </div>
-
                     <div className="text-right">
-                      <span className="text-[10px] font-bold text-blue-600 block mb-1">
-                        Level {ref.level}
-                      </span>
-
-                      <span
-                        className={`text-[9px] px-2 py-0.5 rounded-md font-bold uppercase tracking-wider ${
-                          ref.isActive
-                            ? "bg-green-100 text-green-700"
-                            : "bg-gray-200 text-gray-500"
-                        }`}
-                      >
-                        {ref.isActive
-                          ? "Active (Deposited)"
-                          : "Inactive"}
-                      </span>
+                      <span className="text-[10px] font-bold text-blue-600 block mb-1">Level {ref.level}</span>
+                      <span className={`text-[9px] px-2 py-0.5 rounded-md font-bold uppercase tracking-wider ${ref.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-500'}`}>{ref.isActive ? "Active" : "Inactive"}</span>
                     </div>
-
                   </div>
                 ))
               )}
-
             </div>
           </div>
         </div>
       )}
-
     </div>
   );
 }
