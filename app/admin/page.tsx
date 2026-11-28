@@ -50,16 +50,15 @@ export default function AdminPanel() {
   }, []);
 
   const fetchAllData = async () => {
-    // 1. Fetch raw data for aggregations
     const { data: profiles } = await supabase
       .from("profiles")
       .select("*, balances(available)")
       .order("created_at", { ascending: false });
       
     const { data: allTx } = await supabase.from("transactions").select("user_id, type, amount, status");
-    const { data: allInvs } = await supabase.from("investments").select("user_id, amount, status");
+    // We now fetch is_granted
+    const { data: allInvs } = await supabase.from("investments").select("user_id, amount, status, is_granted");
 
-    // 2. Calculate Global Stats
     let totalDeposited = 0;
     let totalWithdrawn = 0;
     
@@ -68,8 +67,8 @@ export default function AdminPanel() {
       totalWithdrawn = allTx.filter(t => t.type === 'WITHDRAWAL' && t.status === 'COMPLETED').reduce((sum, t) => sum + Number(t.amount), 0);
     }
     
-    // NEW: Only sum up investments where the user actually paid (amount > 0)
-    const totalInvested = allInvs?.filter(i => i.status === 'ACTIVE' && Number(i.amount) > 0).reduce((sum, i) => sum + Number(i.amount), 0) || 0;
+    // ONLY count active investments that are NOT granted by admin
+    const totalInvested = allInvs?.filter(i => i.status === 'ACTIVE' && !i.is_granted).reduce((sum, i) => sum + Number(i.amount), 0) || 0;
 
     setStats({
       totalUsers: profiles?.length || 0,
@@ -78,7 +77,6 @@ export default function AdminPanel() {
       totalWithdrawn
     });
 
-    // 3. Enrich Profiles with their specific stats
     if (profiles && allTx && allInvs) {
       const enrichedUsers = profiles.map(user => {
         const userTx = allTx.filter(t => t.user_id === user.id && t.status === 'COMPLETED');
@@ -87,8 +85,8 @@ export default function AdminPanel() {
         const deposited = userTx.filter(t => t.type === 'DEPOSIT').reduce((sum, t) => sum + Number(t.amount), 0);
         const commission = userTx.filter(t => t.type === 'COMMISSION').reduce((sum, t) => sum + Number(t.amount), 0);
         
-        // For individual users, only count their paid investments as "Invested"
-        const invested = userInvs.filter(i => Number(i.amount) > 0).reduce((sum, i) => sum + Number(i.amount), 0);
+        // ONLY count investments that are NOT granted
+        const invested = userInvs.filter(i => !i.is_granted).reduce((sum, i) => sum + Number(i.amount), 0);
         const hasActive = userInvs.some(i => i.status === 'ACTIVE');
 
         return { 
@@ -100,11 +98,9 @@ export default function AdminPanel() {
       setUsers(enrichedUsers);
     }
 
-    // 4. Fetch Pending Deposits
     const { data: dep } = await supabase.from("transactions").select("*, profiles(phone)").eq("type", "DEPOSIT").eq("status", "PENDING").order("created_at", { ascending: false });
     if (dep) setDeposits(dep);
 
-    // 5. Fetch Pending Withdrawals
     const { data: txs } = await supabase
       .from("transactions")
       .select("*, profiles(phone, full_name, bound_number)")
@@ -113,7 +109,6 @@ export default function AdminPanel() {
       .order("created_at", { ascending: false });
     if (txs) setWithdrawals(txs);
 
-    // 6. Fetch Products
     const { data: prods } = await supabase.from("products").select("*").order("min_amount", { ascending: true });
     if (prods) setProducts(prods);
   };
@@ -210,10 +205,11 @@ export default function AdminPanel() {
       const { error } = await supabase.from("investments").insert({
         user_id: grantingUser.id,
         product_id: product.id,
-        amount: 0, // UPDATED: Set to 0 so it doesn't count as a real investment
+        amount: 0, 
         expected_return: Number(product.daily_payout) * Number(product.duration_days),
         status: "ACTIVE",
-        payouts_made: 0
+        payouts_made: 0,
+        is_granted: true // EXPLICITLY MARK AS GRANTED
       });
 
       if (error) throw error;
@@ -519,7 +515,6 @@ export default function AdminPanel() {
         )}
       </div>
 
-      {/* MODALS */}
       {editingProduct && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl">
