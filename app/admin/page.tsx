@@ -86,8 +86,6 @@ export default function AdminPanel() {
         const deposited = userTx.filter(t => t.type === 'DEPOSIT').reduce((sum, t) => sum + Number(t.amount), 0);
         const commission = userTx.filter(t => t.type === 'COMMISSION').reduce((sum, t) => sum + Number(t.amount), 0);
         const invested = userInvs.reduce((sum, i) => sum + Number(i.amount), 0);
-
-        // Check if user has active investment for the badge
         const hasActive = userInvs.some(i => i.status === 'ACTIVE');
 
         return { 
@@ -99,14 +97,20 @@ export default function AdminPanel() {
       setUsers(enrichedUsers);
     }
 
-    // 4. Fetch Pending Deposits & Withdrawals
+    // 4. Fetch Pending Deposits
     const { data: dep } = await supabase.from("transactions").select("*, profiles(phone)").eq("type", "DEPOSIT").eq("status", "PENDING").order("created_at", { ascending: false });
     if (dep) setDeposits(dep);
 
-    const { data: txs } = await supabase.from("transactions").select("*, profiles(phone, full_name, bound_number)").eq("type", "WITHDRAWAL").eq("status", "PENDING").order("created_at", { ascending: false });
+    // 5. Fetch Pending Withdrawals (Include registered phone, bound number, bound name)
+    const { data: txs } = await supabase
+      .from("transactions")
+      .select("*, profiles(phone, full_name, bound_number)")
+      .eq("type", "WITHDRAWAL")
+      .eq("status", "PENDING")
+      .order("created_at", { ascending: false });
     if (txs) setWithdrawals(txs);
 
-    // 5. Fetch Products
+    // 6. Fetch Products
     const { data: prods } = await supabase.from("products").select("*").order("min_amount", { ascending: true });
     if (prods) setProducts(prods);
   };
@@ -122,7 +126,6 @@ export default function AdminPanel() {
       const ids = refs.map(r => r.referee_id);
       const { data: profiles } = await supabase.from("profiles").select("id, phone, display_name").in("id", ids);
       
-      // Active means they have a COMPLETED deposit
       const { data: userDeposits } = await supabase
         .from("transactions")
         .select("user_id")
@@ -258,17 +261,55 @@ export default function AdminPanel() {
     fetchAllData();
   };
 
+  // --- FIXED APPROVE WITHDRAWAL (REMOVED CONFIRM) ---
   const handleApproveWithdrawal = async (txId: string) => {
-    if (!confirm("Approve this withdrawal?")) return;
-    await supabase.from("transactions").update({ status: "COMPLETED" }).eq("id", txId);
+    const { error } = await supabase.from("transactions").update({ status: "COMPLETED" }).eq("id", txId);
+    if (error) {
+      alert("Database Error: " + error.message);
+      return;
+    }
+    alert("Withdrawal Marked as Paid!");
     fetchAllData();
   };
 
+  // --- FIXED REJECT WITHDRAWAL (REMOVED CONFIRM, ADDED ERROR ALERTS) ---
   const handleRejectWithdrawal = async (txId: string, userId: string, amount: number) => {
-    if (!confirm("Reject and refund?")) return;
-    await supabase.from("transactions").update({ status: "REJECTED" }).eq("id", txId);
-    const { data: bal } = await supabase.from("balances").select("available").eq("user_id", userId).single();
-    if (bal) await supabase.from("balances").update({ available: Number(bal.available) + Number(amount) }).eq("user_id", userId);
+    // 1. Try to update the transaction
+    const { error: txError } = await supabase
+      .from("transactions")
+      .update({ status: "REJECTED" })
+      .eq("id", txId);
+      
+    if (txError) {
+      alert("Database Error (Transaction): " + txError.message);
+      return;
+    }
+
+    // 2. Try to refund the balance
+    const { data: bal, error: fetchBalError } = await supabase
+      .from("balances")
+      .select("available")
+      .eq("user_id", userId)
+      .single();
+      
+    if (fetchBalError) {
+      alert("Database Error (Fetch Balance): " + fetchBalError.message);
+      return;
+    }
+
+    if (bal) {
+      const { error: refundError } = await supabase
+        .from("balances")
+        .update({ available: Number(bal.available) + Number(amount) })
+        .eq("user_id", userId);
+        
+      if (refundError) {
+        alert("Database Error (Refund): " + refundError.message);
+        return;
+      }
+    }
+
+    alert(`Successfully rejected and refunded UGX ${Number(amount).toLocaleString()}`);
     fetchAllData();
   };
 
@@ -284,8 +325,7 @@ export default function AdminPanel() {
     const price = Number(editPrice);
     const daily = Number(editDaily);
 
-    if (!Number.isFinite(price) || price <= 0 ||
-        !Number.isFinite(daily) || daily <= 0) {
+    if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(daily) || daily <= 0) {
       alert("Please enter valid product values.");
       return;
     }
@@ -362,7 +402,6 @@ export default function AdminPanel() {
             </div>
 
             {filteredUsers.map((user) => {
-              // Bulletproof Balance Parser
               let userBalance = 0;
               if (user.balances) {
                 if (Array.isArray(user.balances)) {
@@ -386,7 +425,6 @@ export default function AdminPanel() {
                     ) : null}
                   </div>
                   
-                  {/* UPDATED STATS GRID */}
                   <div className="bg-gray-50 p-3 rounded-xl mb-4 grid grid-cols-2 gap-y-3 gap-x-2">
                     <div>
                       <p className="text-[9px] text-gray-500 font-bold uppercase">Balance</p>
@@ -418,7 +456,6 @@ export default function AdminPanel() {
           </div>
         )}
 
-        {/* OTHER TABS REMAIN THE SAME */}
         {activeTab === "DEPOSITS" && (
           <div className="space-y-3">
             {deposits.map((d) => (
@@ -440,22 +477,41 @@ export default function AdminPanel() {
           </div>
         )}
 
+        {/* UPDATED WITHDRAWALS TAB */}
         {activeTab === "WITHDRAWALS" && (
           <div className="space-y-3">
+            {withdrawals.length === 0 && <p className="text-center text-gray-500 mt-10">No pending withdrawals.</p>}
             {withdrawals.map((w) => (
               <div key={w.id} className="bg-white border border-gray-100 p-4 rounded-2xl shadow-sm">
-                <div className="flex justify-between items-center mb-2">
+                <div className="flex justify-between items-start mb-3">
                   <div>
-                    <p className="font-bold text-gray-900">{w.profiles?.full_name || w.profiles?.phone}</p>
-                    <p className="text-xs text-cyan-600">{w.profiles?.bound_number}</p>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-0.5">Registered Phone</p>
+                    <p className="font-bold text-gray-900">{w.profiles?.phone || "Unknown"}</p>
                   </div>
                   <div className="text-right">
+                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-0.5">Requested</p>
                     <h3 className="text-lg font-black text-red-500">UGX {Number(w.amount).toLocaleString()}</h3>
                   </div>
                 </div>
+                
+                <div className="bg-gray-50 p-3 rounded-xl mb-4 space-y-2 border border-gray-100">
+                  <div className="flex justify-between items-center">
+                    <p className="text-[10px] text-gray-500 font-bold uppercase">Bound Name</p>
+                    <p className="text-xs font-black text-gray-900">{w.profiles?.full_name || "N/A"}</p>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <p className="text-[10px] text-gray-500 font-bold uppercase">Bound Number</p>
+                    <p className="text-xs font-black text-gray-900">{w.profiles?.bound_number || "N/A"}</p>
+                  </div>
+                  <div className="flex justify-between items-center border-t border-gray-200 pt-2 mt-1">
+                    <p className="text-[10px] text-green-600 font-bold uppercase">Net Amount (After 15%)</p>
+                    <p className="text-sm font-black text-green-600">UGX {(Number(w.amount) * 0.85).toLocaleString()}</p>
+                  </div>
+                </div>
+
                 <div className="flex gap-2 mt-4">
                   <button onClick={() => handleApproveWithdrawal(w.id)} className="flex-1 bg-green-600 text-white font-bold py-2 rounded-xl text-sm">Mark Paid</button>
-                  <button onClick={() => handleRejectWithdrawal(w.id, w.user_id, w.amount)} className="flex-1 bg-red-50 text-red-600 font-bold py-2 rounded-xl text-sm border border-red-100">Reject</button>
+                  <button onClick={() => handleRejectWithdrawal(w.id, w.user_id, w.amount)} className="flex-1 bg-red-50 text-red-600 font-bold py-2 rounded-xl text-sm border border-red-100">Reject & Refund</button>
                 </div>
               </div>
             ))}
@@ -477,7 +533,7 @@ export default function AdminPanel() {
         )}
       </div>
 
-      {/* MODALS REMAIN THE SAME */}
+      {/* MODALS */}
       {editingProduct && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl">
