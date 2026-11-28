@@ -9,7 +9,7 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// FETCH DATA IN BATCHES TO AVOID SUPABASE ROW LIMITS
+// FETCH DATA IN BATCHES
 async function fetchAllRows(queryFactory: () => any) {
   const allRows: any[] = [];
   const batchSize = 1000;
@@ -34,7 +34,7 @@ async function fetchAllRows(queryFactory: () => any) {
   return allRows;
 }
 
-// GET ALL DESCENDANTS OF A USER ACROSS ALL LEVELS
+// GET ALL DESCENDANTS OF A USER
 function getAllDescendants(
   userId: string,
   profiles: any[],
@@ -75,7 +75,6 @@ function getAllDescendants(
 
     const currentId = String(current.user.id);
 
-    // Prevent duplicate users and referral loops
     if (visited.has(currentId)) continue;
 
     visited.add(currentId);
@@ -119,11 +118,25 @@ export default function AdminPanel() {
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
 
+  // OVERVIEW STATS
   const [stats, setStats] = useState({
     totalUsers: 0,
     totalDeposited: 0,
     totalInvested: 0,
+    totalWithdrawn: 0,
   });
+
+  // INDIVIDUAL USER STATS
+  const [userFinancialStats, setUserFinancialStats] = useState<
+    Record<
+      string,
+      {
+        deposited: number;
+        invested: number;
+        commission: number;
+      }
+    >
+  >({});
 
   const [userReferralStats, setUserReferralStats] = useState<
     Record<string, { total: number; active: number }>
@@ -202,18 +215,116 @@ export default function AdminPanel() {
           .select("id, referred_by, phone, display_name, full_name")
       );
 
-      // FETCH ALL COMPLETED DEPOSITS
-      const completedDeposits = await fetchAllRows(() =>
+      // FETCH COMPLETED DEPOSITS
+      const allCompletedDeposits = await fetchAllRows(() =>
         supabase
           .from("transactions")
-          .select("user_id")
+          .select("user_id, amount")
           .eq("type", "DEPOSIT")
           .eq("status", "COMPLETED")
       );
 
       const depositedUserIds = new Set<string>(
-        completedDeposits.map((d: any) => String(d.user_id))
+        allCompletedDeposits.map((d: any) => String(d.user_id))
       );
+
+      // FETCH COMPLETED WITHDRAWALS
+      const allCompletedWithdrawals = await fetchAllRows(() =>
+        supabase
+          .from("transactions")
+          .select("user_id, amount")
+          .eq("type", "WITHDRAWAL")
+          .eq("status", "COMPLETED")
+      );
+
+      // FETCH COMPLETED COMMISSIONS
+      const allCompletedCommissions = await fetchAllRows(() =>
+        supabase
+          .from("transactions")
+          .select("user_id, amount")
+          .eq("type", "COMMISSION")
+          .eq("status", "COMPLETED")
+      );
+
+      // FETCH ACTIVE INVESTMENTS
+      const allActiveInvestments = await fetchAllRows(() =>
+        supabase
+          .from("investments")
+          .select("user_id, amount")
+          .eq("status", "ACTIVE")
+      );
+
+      // USER FINANCIAL STATISTICS
+      const financialStats: Record<
+        string,
+        {
+          deposited: number;
+          invested: number;
+          commission: number;
+        }
+      > = {};
+
+      // INITIALIZE USERS
+      allProfiles.forEach((profile: any) => {
+        financialStats[String(profile.id)] = {
+          deposited: 0,
+          invested: 0,
+          commission: 0,
+        };
+      });
+
+      // CALCULATE EACH USER'S DEPOSITS
+      allCompletedDeposits.forEach((deposit: any) => {
+        const userId = String(deposit.user_id);
+
+        if (!financialStats[userId]) {
+          financialStats[userId] = {
+            deposited: 0,
+            invested: 0,
+            commission: 0,
+          };
+        }
+
+        financialStats[userId].deposited += Number(
+          deposit.amount || 0
+        );
+      });
+
+      // CALCULATE EACH USER'S ACTIVE INVESTMENTS
+      allActiveInvestments.forEach((investment: any) => {
+        const userId = String(investment.user_id);
+
+        if (!financialStats[userId]) {
+          financialStats[userId] = {
+            deposited: 0,
+            invested: 0,
+            commission: 0,
+          };
+        }
+
+        financialStats[userId].invested += Number(
+          investment.amount || 0
+        );
+      });
+
+      // CALCULATE EACH USER'S REFERRAL COMMISSION
+      allCompletedCommissions.forEach((commission: any) => {
+        const userId = String(commission.user_id);
+
+        if (!financialStats[userId]) {
+          financialStats[userId] = {
+            deposited: 0,
+            invested: 0,
+            commission: 0,
+          };
+        }
+
+        financialStats[userId].commission += Number(
+          commission.amount || 0
+        );
+      });
+
+      setUserFinancialStats(financialStats);
 
       // CREATE REFERRAL MAP
       const referralStats: Record<
@@ -286,42 +397,35 @@ export default function AdminPanel() {
         console.error("User count error:", countError);
       }
 
+      // TOTAL INVESTED
+      const totalInvested =
+        allActiveInvestments.reduce(
+          (acc: number, curr: any) =>
+            acc + Number(curr.amount || 0),
+          0
+        ) || 0;
+
       // TOTAL DEPOSITED
-      const allCompletedDeposits = await fetchAllRows(() =>
-        supabase
-          .from("transactions")
-          .select("amount")
-          .eq("type", "DEPOSIT")
-          .eq("status", "COMPLETED")
-      );
+      const totalDeposited =
+        allCompletedDeposits.reduce(
+          (acc: number, curr: any) =>
+            acc + Number(curr.amount || 0),
+          0
+        ) || 0;
 
-      // TOTAL ACTIVE INVESTMENTS
-      const { data: investments, error: investmentError } =
-        await supabase
-          .from("investments")
-          .select("amount")
-          .eq("status", "ACTIVE");
-
-      if (investmentError) {
-        console.error("Investment fetch error:", investmentError);
-      }
+      // TOTAL WITHDRAWN
+      const totalWithdrawn =
+        allCompletedWithdrawals.reduce(
+          (acc: number, curr: any) =>
+            acc + Number(curr.amount || 0),
+          0
+        ) || 0;
 
       setStats({
         totalUsers: userCount || 0,
-
-        totalDeposited:
-          allCompletedDeposits.reduce(
-            (acc: number, curr: any) =>
-              acc + Number(curr.amount || 0),
-            0
-          ) || 0,
-
-        totalInvested:
-          investments?.reduce(
-            (acc: number, curr: any) =>
-              acc + Number(curr.amount || 0),
-            0
-          ) || 0,
+        totalDeposited,
+        totalInvested,
+        totalWithdrawn,
       });
     } catch (error) {
       console.error("Fetch all data error:", error);
@@ -335,14 +439,12 @@ export default function AdminPanel() {
     setUserReferrals([]);
 
     try {
-      // FETCH ALL USERS
       const allProfiles = await fetchAllRows(() =>
         supabase
           .from("profiles")
           .select("id, referred_by, phone, display_name, full_name")
       );
 
-      // FETCH ALL COMPLETED DEPOSITS
       const completedDeposits = await fetchAllRows(() =>
         supabase
           .from("transactions")
@@ -355,14 +457,12 @@ export default function AdminPanel() {
         completedDeposits.map((d: any) => String(d.user_id))
       );
 
-      // GET ALL DESCENDANTS FROM LEVEL 1 AND BEYOND
       const descendants = getAllDescendants(
         userId,
         allProfiles,
         depositedUserIds
       );
 
-      // SORT BY LEVEL, THEN NAME
       descendants.sort((a, b) => {
         if (a.level !== b.level) {
           return a.level - b.level;
@@ -432,8 +532,7 @@ export default function AdminPanel() {
     const newStatus =
       currentStatus === "BANNED" ? "ACTIVE" : "BANNED";
 
-    const action =
-      newStatus === "BANNED" ? "ban" : "unban";
+    const action = newStatus === "BANNED" ? "ban" : "unban";
 
     if (!confirm(`Are you sure you want to ${action} this user?`))
       return;
@@ -868,30 +967,47 @@ export default function AdminPanel() {
         {activeTab === "OVERVIEW" && (
           <div className="space-y-4">
 
+            {/* TOTAL USERS */}
             <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
               <p className="text-gray-400 text-xs font-bold uppercase">
                 Total Users
               </p>
+
               <h2 className="text-3xl font-black">
-                {stats.totalUsers}
+                {stats.totalUsers.toLocaleString()}
               </h2>
             </div>
 
+            {/* TOTAL DEPOSITED */}
             <div className="bg-white p-5 rounded-2xl border border-green-100 shadow-sm">
               <p className="text-green-500 text-xs font-bold uppercase">
                 Total Deposited
               </p>
-              <h2 className="text-3xl font-black">
+
+              <h2 className="text-3xl font-black text-green-600">
                 UGX {stats.totalDeposited.toLocaleString()}
               </h2>
             </div>
 
+            {/* TOTAL INVESTED */}
             <div className="bg-white p-5 rounded-2xl border border-blue-100 shadow-sm">
               <p className="text-blue-500 text-xs font-bold uppercase">
                 Total Invested
               </p>
-              <h2 className="text-3xl font-black">
+
+              <h2 className="text-3xl font-black text-blue-600">
                 UGX {stats.totalInvested.toLocaleString()}
+              </h2>
+            </div>
+
+            {/* TOTAL WITHDRAWN */}
+            <div className="bg-white p-5 rounded-2xl border border-red-100 shadow-sm">
+              <p className="text-red-500 text-xs font-bold uppercase">
+                Total Withdrawn
+              </p>
+
+              <h2 className="text-3xl font-black text-red-600">
+                UGX {stats.totalWithdrawn.toLocaleString()}
               </h2>
             </div>
 
@@ -954,13 +1070,20 @@ export default function AdminPanel() {
                 (inv: any) => inv.status === "ACTIVE"
               );
 
-              // ALL-LEVEL REFERRALS
-              const referralStats = userReferralStats[
-                String(user.id)
-              ] || {
-                total: 0,
-                active: 0,
-              };
+              // USER FINANCIAL STATS
+              const financialStats =
+                userFinancialStats[String(user.id)] || {
+                  deposited: 0,
+                  invested: 0,
+                  commission: 0,
+                };
+
+              // REFERRALS
+              const referralStats =
+                userReferralStats[String(user.id)] || {
+                  total: 0,
+                  active: 0,
+                };
 
               return (
                 <div
@@ -968,7 +1091,7 @@ export default function AdminPanel() {
                   className="bg-white border border-gray-100 p-4 rounded-2xl shadow-sm"
                 >
 
-                  {/* USER */}
+                  {/* USER DETAILS */}
                   <div className="flex justify-between items-start mb-3">
                     <div>
                       <p className="font-bold text-gray-900">
@@ -1008,26 +1131,61 @@ export default function AdminPanel() {
                     </p>
                   </div>
 
-                  {/* REFERRAL COUNTS */}
+                  {/* INDIVIDUAL USER FINANCIAL STATS */}
                   <div className="grid grid-cols-2 gap-2 mb-3">
 
+                    {/* DEPOSITED */}
+                    <div className="bg-green-50 border border-green-100 p-3 rounded-xl">
+                      <p className="text-[9px] text-green-600 font-bold uppercase">
+                        Total Deposited
+                      </p>
+
+                      <p className="text-sm font-black text-green-700">
+                        UGX {financialStats.deposited.toLocaleString()}
+                      </p>
+                    </div>
+
+                    {/* INVESTED */}
+                    <div className="bg-blue-50 border border-blue-100 p-3 rounded-xl">
+                      <p className="text-[9px] text-blue-600 font-bold uppercase">
+                        Total Invested
+                      </p>
+
+                      <p className="text-sm font-black text-blue-700">
+                        UGX {financialStats.invested.toLocaleString()}
+                      </p>
+                    </div>
+
+                    {/* REFERRAL COMMISSION */}
+                    <div className="bg-purple-50 border border-purple-100 p-3 rounded-xl">
+                      <p className="text-[9px] text-purple-600 font-bold uppercase">
+                        Referral Commission
+                      </p>
+
+                      <p className="text-sm font-black text-purple-700">
+                        UGX {financialStats.commission.toLocaleString()}
+                      </p>
+                    </div>
+
+                    {/* TOTAL REFERRALS */}
                     <div className="bg-cyan-50 border border-cyan-100 p-3 rounded-xl">
                       <p className="text-[9px] text-cyan-600 font-bold uppercase">
                         Total Referrals
                       </p>
 
                       <p className="text-xl font-black text-cyan-700">
-                        {referralStats.total}
+                        {referralStats.total.toLocaleString()}
                       </p>
                     </div>
 
-                    <div className="bg-green-50 border border-green-100 p-3 rounded-xl">
-                      <p className="text-[9px] text-green-600 font-bold uppercase">
+                    {/* ACTIVE REFERRALS */}
+                    <div className="bg-emerald-50 border border-emerald-100 p-3 rounded-xl col-span-2">
+                      <p className="text-[9px] text-emerald-600 font-bold uppercase">
                         Active Referrals
                       </p>
 
-                      <p className="text-xl font-black text-green-700">
-                        {referralStats.active}
+                      <p className="text-xl font-black text-emerald-700">
+                        {referralStats.active.toLocaleString()}
                       </p>
                     </div>
 
@@ -1095,7 +1253,6 @@ export default function AdminPanel() {
                 key={d.id}
                 className="bg-white border border-gray-100 p-4 rounded-2xl shadow-sm"
               >
-
                 <div className="flex justify-between items-center mb-2">
                   <p className="font-bold text-gray-900">
                     {d.profiles?.phone}
@@ -1174,7 +1331,7 @@ export default function AdminPanel() {
                       {w.profiles?.full_name || "Name not provided"}
                     </p>
 
-                    {/* REGISTERED PHONE NUMBER */}
+                    {/* REGISTERED PHONE */}
                     <div className="mt-2 bg-blue-50 border border-blue-100 p-2 rounded-lg">
                       <p className="text-[9px] font-bold text-blue-500 uppercase tracking-wider">
                         Registered Number
@@ -1185,7 +1342,7 @@ export default function AdminPanel() {
                       </p>
                     </div>
 
-                    {/* WITHDRAWAL / RECEIVING NUMBER */}
+                    {/* RECEIVING NUMBER */}
                     <div className="mt-2 bg-cyan-50 border border-cyan-100 p-2 rounded-lg">
                       <p className="text-[9px] font-bold text-cyan-600 uppercase tracking-wider">
                         Receiving Number
@@ -1198,7 +1355,7 @@ export default function AdminPanel() {
 
                   </div>
 
-                  {/* WITHDRAWAL AMOUNT */}
+                  {/* AMOUNT */}
                   <div className="text-right ml-3">
                     <p className="text-[9px] text-gray-400 font-bold uppercase">
                       Amount
@@ -1257,7 +1414,6 @@ export default function AdminPanel() {
                 key={p.id}
                 className="bg-white border border-gray-100 p-4 rounded-2xl flex justify-between items-center shadow-sm"
               >
-
                 <div>
                   <p className="font-bold text-gray-900">
                     {p.name}
@@ -1277,7 +1433,6 @@ export default function AdminPanel() {
                 >
                   Edit
                 </button>
-
               </div>
             ))}
 
@@ -1485,7 +1640,6 @@ export default function AdminPanel() {
                     key={ref.id}
                     className="bg-gray-50 border border-gray-100 p-3 rounded-xl flex justify-between items-center"
                   >
-
                     <div>
                       <p className="font-bold text-gray-900 text-sm">
                         {ref.name}
