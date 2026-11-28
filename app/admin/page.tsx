@@ -24,7 +24,6 @@ async function fetchAllRows(queryFactory: () => any) {
     if (error) throw error;
 
     const rows = data || [];
-
     allRows.push(...rows);
 
     if (rows.length < batchSize) break;
@@ -1166,26 +1165,54 @@ export default function AdminPanel() {
                 className="bg-white border border-gray-100 p-4 rounded-2xl shadow-sm"
               >
 
-                <div className="flex justify-between items-center mb-2">
-                  <div>
-                    <p className="font-bold text-gray-900">
-                      {w.profiles?.full_name ||
-                        w.profiles?.phone}
+                {/* USER DETAILS AND AMOUNT */}
+                <div className="flex justify-between items-start mb-3">
+                  <div className="flex-1 min-w-0">
+
+                    {/* USER NAME */}
+                    <p className="font-bold text-gray-900 text-sm">
+                      {w.profiles?.full_name || "Name not provided"}
                     </p>
 
-                    <p className="text-xs text-cyan-600">
-                      {w.profiles?.bound_number}
-                    </p>
+                    {/* REGISTERED PHONE NUMBER */}
+                    <div className="mt-2 bg-blue-50 border border-blue-100 p-2 rounded-lg">
+                      <p className="text-[9px] font-bold text-blue-500 uppercase tracking-wider">
+                        Registered Number
+                      </p>
+
+                      <p className="text-sm font-bold text-blue-800">
+                        {w.profiles?.phone || "Not available"}
+                      </p>
+                    </div>
+
+                    {/* WITHDRAWAL / RECEIVING NUMBER */}
+                    <div className="mt-2 bg-cyan-50 border border-cyan-100 p-2 rounded-lg">
+                      <p className="text-[9px] font-bold text-cyan-600 uppercase tracking-wider">
+                        Receiving Number
+                      </p>
+
+                      <p className="text-sm font-bold text-cyan-800">
+                        {w.profiles?.bound_number || "Not provided"}
+                      </p>
+                    </div>
+
                   </div>
 
-                  <div className="text-right">
+                  {/* WITHDRAWAL AMOUNT */}
+                  <div className="text-right ml-3">
+                    <p className="text-[9px] text-gray-400 font-bold uppercase">
+                      Amount
+                    </p>
+
                     <h3 className="text-lg font-black text-red-500">
                       UGX {Number(w.amount).toLocaleString()}
                     </h3>
                   </div>
                 </div>
 
+                {/* ACTION BUTTONS */}
                 <div className="flex gap-2 mt-4">
+
                   <button
                     onClick={() =>
                       handleApproveWithdrawal(w.id)
@@ -1207,6 +1234,7 @@ export default function AdminPanel() {
                   >
                     Reject
                   </button>
+
                 </div>
               </div>
             ))}
