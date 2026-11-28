@@ -68,7 +68,8 @@ export default function AdminPanel() {
       totalWithdrawn = allTx.filter(t => t.type === 'WITHDRAWAL' && t.status === 'COMPLETED').reduce((sum, t) => sum + Number(t.amount), 0);
     }
     
-    const totalInvested = allInvs?.filter(i => i.status === 'ACTIVE').reduce((sum, i) => sum + Number(i.amount), 0) || 0;
+    // NEW: Only sum up investments where the user actually paid (amount > 0)
+    const totalInvested = allInvs?.filter(i => i.status === 'ACTIVE' && Number(i.amount) > 0).reduce((sum, i) => sum + Number(i.amount), 0) || 0;
 
     setStats({
       totalUsers: profiles?.length || 0,
@@ -85,7 +86,9 @@ export default function AdminPanel() {
 
         const deposited = userTx.filter(t => t.type === 'DEPOSIT').reduce((sum, t) => sum + Number(t.amount), 0);
         const commission = userTx.filter(t => t.type === 'COMMISSION').reduce((sum, t) => sum + Number(t.amount), 0);
-        const invested = userInvs.reduce((sum, i) => sum + Number(i.amount), 0);
+        
+        // For individual users, only count their paid investments as "Invested"
+        const invested = userInvs.filter(i => Number(i.amount) > 0).reduce((sum, i) => sum + Number(i.amount), 0);
         const hasActive = userInvs.some(i => i.status === 'ACTIVE');
 
         return { 
@@ -101,7 +104,7 @@ export default function AdminPanel() {
     const { data: dep } = await supabase.from("transactions").select("*, profiles(phone)").eq("type", "DEPOSIT").eq("status", "PENDING").order("created_at", { ascending: false });
     if (dep) setDeposits(dep);
 
-    // 5. Fetch Pending Withdrawals (Include registered phone, bound number, bound name)
+    // 5. Fetch Pending Withdrawals
     const { data: txs } = await supabase
       .from("transactions")
       .select("*, profiles(phone, full_name, bound_number)")
@@ -207,7 +210,7 @@ export default function AdminPanel() {
       const { error } = await supabase.from("investments").insert({
         user_id: grantingUser.id,
         product_id: product.id,
-        amount: product.min_amount,
+        amount: 0, // UPDATED: Set to 0 so it doesn't count as a real investment
         expected_return: Number(product.daily_payout) * Number(product.duration_days),
         status: "ACTIVE",
         payouts_made: 0
@@ -261,41 +264,28 @@ export default function AdminPanel() {
     fetchAllData();
   };
 
-  // --- FIXED APPROVE WITHDRAWAL (REMOVED CONFIRM) ---
   const handleApproveWithdrawal = async (txId: string) => {
     const { error } = await supabase.from("transactions").update({ status: "COMPLETED" }).eq("id", txId);
-    if (error) {
-      alert("Database Error: " + error.message);
-      return;
-    }
+    if (error) { alert("Database Error: " + error.message); return; }
     alert("Withdrawal Marked as Paid!");
     fetchAllData();
   };
 
-  // --- FIXED REJECT WITHDRAWAL (REMOVED CONFIRM, ADDED ERROR ALERTS) ---
   const handleRejectWithdrawal = async (txId: string, userId: string, amount: number) => {
-    // 1. Try to update the transaction
     const { error: txError } = await supabase
       .from("transactions")
       .update({ status: "REJECTED" })
       .eq("id", txId);
       
-    if (txError) {
-      alert("Database Error (Transaction): " + txError.message);
-      return;
-    }
+    if (txError) { alert("Database Error (Transaction): " + txError.message); return; }
 
-    // 2. Try to refund the balance
     const { data: bal, error: fetchBalError } = await supabase
       .from("balances")
       .select("available")
       .eq("user_id", userId)
       .single();
       
-    if (fetchBalError) {
-      alert("Database Error (Fetch Balance): " + fetchBalError.message);
-      return;
-    }
+    if (fetchBalError) { alert("Database Error (Fetch Balance): " + fetchBalError.message); return; }
 
     if (bal) {
       const { error: refundError } = await supabase
@@ -303,10 +293,7 @@ export default function AdminPanel() {
         .update({ available: Number(bal.available) + Number(amount) })
         .eq("user_id", userId);
         
-      if (refundError) {
-        alert("Database Error (Refund): " + refundError.message);
-        return;
-      }
+      if (refundError) { alert("Database Error (Refund): " + refundError.message); return; }
     }
 
     alert(`Successfully rejected and refunded UGX ${Number(amount).toLocaleString()}`);
@@ -477,7 +464,6 @@ export default function AdminPanel() {
           </div>
         )}
 
-        {/* UPDATED WITHDRAWALS TAB */}
         {activeTab === "WITHDRAWALS" && (
           <div className="space-y-3">
             {withdrawals.length === 0 && <p className="text-center text-gray-500 mt-10">No pending withdrawals.</p>}
